@@ -1,0 +1,34 @@
+<section class="hero-section text-center">
+    <div class="container container--narrow">
+        <div class="hero-section__box">
+            <h2>Search for <span>Posts</span></h2>
+        </div>
+
+        <div class="hero-section__search ">
+            <form   
+                id='searchForm' 
+                class="d-flex my-4" 
+                role="search" 
+                {% if request.path == '/' %}    
+                    action="{% url 'posts:posts-list' %}"
+                {% else %}
+                    action="{% url 'category:category-posts' category_slug=category_slug%}"
+                {%endif%} 
+                 method="get"
+            >
+                
+                <div class="form__field">
+                    <label for="formInput#search">Search By Posts </label>
+                    <input class="form-control me-2" type="search" id="formInput#search"  name="search_query"
+                        placeholder="Search by Posts Title" value="{{search_query}}" />
+                </div>
+
+                <button class="btn btn-outline-success" type="submit">Search</button>
+
+                <a class="btn btn-danger" {% if request.path == '/' %} href="{% url 'posts:posts-list' %}" {% else %} href="{% url 'category:category-posts' category_slug=category_slug %}" {% endif %}>Reset</a>
+                
+
+            </form>
+        </div>
+    </div>
+</section>

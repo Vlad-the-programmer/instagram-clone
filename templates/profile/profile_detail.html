@@ -1,0 +1,35 @@
+{% extends '../base.html' %} 
+
+{% block content %}
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-8 card mb-4 mt-3 left top">
+      <img src="{{user.imageURL}}" width="50" class="rounded-circle mr-2" />
+
+      <div class="card-body">
+        <h1>{% block title %} {{ Profile }} {% endblock title %}</h1>
+        <p class="text-muted">{{profile.country}}</p>
+        <p class="card-text">{{ profile.get_full_name }}</p>
+        <p class="card-text">{{ profile.username }}</p>
+        <p class="card-text">{{ profile.email }}</p>
+          
+        {% if profile.email == user.email %}
+        <li class="header__menuItem">
+          <a
+            href="{% url 'users:profile-delete' pk=profile.id %}"
+            class="btn btn-danger"
+            >Delete</a
+          >
+          <a
+            href="{% url 'users:profile-update' pk=profile.id %}"
+            class="btn btn-info"
+            >Update</a
+          >
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

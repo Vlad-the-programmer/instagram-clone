@@ -1,0 +1,109 @@
+{% extends '../base.html' %} 
+
+{% block scripts %}
+<script async>
+  function handleFollowClick(x) {
+    x.addEventListener('click', async (e) => {
+      
+      console.log(`{{followingUser.username}}`);
+      console.log(`{{is_following}}`);
+
+      try {
+        const response = await fetch(
+          "{% url 'users:follow-user' username=followingUser.username %}",
+          {
+            headers: {
+              "X-CSRFToken": '{{ csrf_token }}',
+              "Content-Type": "application/json",
+            },
+            method: "POST", 
+            body: "",
+          });
+
+      } catch(e){
+        console.error("Error:", e);
+      } finally{
+        window.location.reload();
+      }
+    })
+  }
+  
+  function handleUnFollowClick(x) {
+    x.addEventListener('click', async (e) => {
+      
+      console.log(`{{followingUser.username}}`);
+      try {
+        const response = await fetch(
+          "{% url 'users:unfollow-user' username=followingUser.username %}",
+          {
+            headers: {
+              "X-CSRFToken": '{{ csrf_token }}',
+              "Content-Type": "application/json",
+            },
+            method: "POST", 
+            body: "",
+          });
+
+      } catch(e){
+        console.error("Error:", e);
+      } finally{
+        window.location.reload();
+      }
+    })
+  }
+
+</script>
+{% endblock %}
+
+{% block content %}
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-8 card mb-4 mt-3 left top">
+      <img src="{{user.imageURL}}" width="50" class="rounded-circle mr-2" />
+
+      <div class="card-body">
+        <h1>{% block title %} {{ Profile }} {% endblock title %}</h1>
+        <p class="text-muted">{{ follower_profile.country }}</p>
+        <p class="card-text">{{ followingUser.get_full_name }}</p>
+        <p class="card-text">{{ followingUser.username }}</p>
+        <p class="card-text">{{ followingUser.email }}</p>
+        {% if followingUser.email == user.email %}
+        <li class="header__menuItem">
+          <a
+            href="{% url 'users:profile-delete' pk=followingUser.id %}"
+            class="btn btn-danger"
+            >Delete</a
+          >
+          <a
+            href="{% url 'users:profile-update' pk=followingUser.id %}"
+            class="btn btn-info"
+            >Update</a
+          >
+        </li>
+        {% else %} 
+        {{ is_following }}
+          {% if is_following %}
+          <a
+            {% comment %} href="{% url 'users:unfollow-user' username=followingUser.username %}" {% endcomment %}
+            onclick="handleUnFollowClick(this)"
+            class="btn btn-danger"
+          >
+            UnFollow
+          </a>
+          {% else %}
+          <a
+            {% comment %} href="{% url 'users:follow-user' username=followingUser.username %}" {% endcomment %}
+            onclick="handleFollowClick(this)"
+            class="btn btn-info"
+          >
+            Follow
+          </a>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

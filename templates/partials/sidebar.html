@@ -1,0 +1,25 @@
+
+<style>
+        .card{
+            box-shadow: 0 16px 48px #E3E7EB;
+        }
+
+</style>
+
+<!-- Sidebar Widgets Column -->
+<div class="col-md-4 float-right ">
+<div class="card my-4">
+    <h5 class="card-header">Categories</h5>
+    <div class="card-body">
+        {% comment %} <p class="card-text"> </p> {% endcomment %}
+        {% for category in categories %}
+        <a href="{% url 'category:category-posts' category_slug=category.slug %}">{{category.title}}| {{category.post_set.all.count}} posts</a><br>
+        {% if user.is_staff %}
+        <a href="{% url 'category:category-update' category_slug=category.slug %}" class="btn btn-info">Update</a>
+        <a href="{% url 'category:category-delete' category_slug=category.slug %}" class="btn btn-danger">Delete</a><br>
+
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+</div>

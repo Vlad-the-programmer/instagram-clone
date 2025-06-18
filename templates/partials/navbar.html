@@ -1,0 +1,46 @@
+{% load static %}
+
+<nav class="navbar navbar-expand-lg navbar-light bg-light shadow" id="mainNav">
+  <div class="container-fluid">
+      <a class="navbar-brand" href="{% url 'posts:posts-list' %}">Django central</a>
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive"
+      aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+  </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+          <ul class="navbar-nav ml-auto">
+              <li class="nav-item text-black">
+                  <a class="nav-link text-black font-weight-bold" href="#">About</a>
+              </li>
+              <li class="nav-item text-black">
+                  <a class="nav-link text-black font-weight-bold" href="#">Policy</a>
+              </li>
+              <li class="nav-item text-black">
+                  <a class="nav-link text-black font-weight-bold" href="#">Contact</a>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Dropdown
+                </a>
+              {% if user.is_authenticated %}
+                <ul class="dropdown-menu">
+                  {% if user.is_staff %}
+                  <li><a class="dropdown-item" href="{% url 'posts:post-create' %}">Add post</a></li>
+                  {% endif %}
+                  <li><a class="dropdown-item" href="{% url 'users:profile-detail' profile.id %}">Profile</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                </ul>
+              {% endif %}
+              </li>
+          </ul>
+      </div>
+  </div>
+  {% if request.user.is_authenticated %}
+            {% comment %} <li class="header__menuItem"><a href="{% url 'inbox' %}">Inbox</a></li>
+            {% comment %} <li class="header__menuItem"><a href="{% url 'account' %}">Account</a></li> {% endcomment %}
+            <li class="btn btn-danger"><a href="{% url 'users:logout' %}" class="btn btn--sub">Logout</a></li>
+            {% else %}
+            <li class="btn btn-success"><a href="{% url 'users:login' %}" class="btn btn--sub">Login</a></li> 
+            {% endif %}
+</nav>
+            

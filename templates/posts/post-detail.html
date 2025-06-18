@@ -1,0 +1,124 @@
+{% extends '../base.html' %} 
+
+    {% block scripts %}
+    <!-- Function to toggle like -->
+    <script>
+      function handleLikeClick(x) {
+        x.addEventListener('click', async (e) => {
+          console.log(`{{post.slug}}`);
+          try {
+            const response = await fetch(
+              "{% url 'likes:like-create' post_slug=post.slug %}",
+              {
+                headers: {
+                  "X-CSRFToken": '{{ csrf_token }}',
+                  "Content-Type": "application/json",
+                },
+                method: "POST", 
+                body: "",
+              });
+
+          } catch(e){
+            console.error("Error:", e);
+          }  finally{
+            window.location.reload();
+          }
+        })
+      }
+      
+      function handleDislikeClick(x) {
+        x.addEventListener('click', async (e) => {
+          console.log(`{{post.slug}}`);
+          try {
+            const response = await fetch(
+              "{% url 'likes:dislike-create' post_slug=post.slug %}",
+              {
+                headers: {
+                  "X-CSRFToken": '{{ csrf_token }}',
+                  "Content-Type": "application/json",
+                },
+                method: "POST", 
+                body: "",
+              });
+
+          } catch(e){
+            console.error("Error:", e);
+          }  finally{
+            window.location.reload();
+          }
+        })
+      }
+
+    </script>
+    {% endblock %} 
+
+{% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-md-8 card mb-4 mt-3 left top">
+      <div class="card-body">
+        {% for tag in post.tags.all %}
+        <a href="#" class="badge text-decoration-none bg-secondary">
+          {{tag}}
+        </a>
+        {% endfor %}
+        <h1>{% block title %} {{ post.title }} {% endblock title %}</h1>
+        <a 
+        href="{% url 'users:following-user-profile' username=post.author.username %}" 
+        class="btn btn-danger">{{ post.author.username }} | {{ post.created_at }}
+        </a>
+        <p class="card-text">{{ post.content | safe }}</p>
+        {% if user.is_authenticated %}
+         {% if profile.email == post.author.email %} 
+        <li class="btn btn-danger">
+          <a
+            href="{% url 'posts:post-delete' slug=post.slug %}"
+            class="btn btn--sub"
+            >Delete</a
+          >
+        </li> 
+        <li class="btn btn-info">
+          <a
+            href="{% url 'posts:post-update' slug=post.slug %}"
+            class="btn btn--sub"
+            >Update</a
+          >
+        </li>
+        {% endif %}
+        <!-- Use an element to toggle between a like/dislike icon -->
+        {% comment %} <form method='POST' action="">
+          {% csrf_token %}  {% endcomment %}
+        <div class="">
+          <a
+          name="like"
+          id="like"
+          class="btn btn-primary"
+          role="button"
+          >
+          <i onclick="handleLikeClick(this)" id="#thumb-up" class="fa fa-thumbs-up"></i>
+        </a>
+        <p>{{post_likes}}</p> 
+        <a
+          name="dislike"
+          id="dislike"
+          class="btn btn-primary"
+          role="button"
+          >
+          <i onclick="handleDislikeClick(this)" id="#thumb-down" class="fa fa-thumbs-down"></i>
+        </a>
+        <p>{{post_dislikes}}</p>
+        {% endif %}
+      </div>
+      {% comment %} </form> {% endcomment %}
+      </div>
+    </div>
+    {% block sidebar %} 
+        {% comment %} {% include 'partials/sidebar.html' %} {% endcomment %}
+    {% endblock sidebar %}
+  </div>
+</div>
+{% include 'partials/comments_list.html' with form=comment_form post=post page_obj=page_obj comments=comments %} 
+
+{% include 'partials/paginate-page-navigation.html' with page_obj=page_obj custom_range=custom_range %} 
+
+{% endblock content %}

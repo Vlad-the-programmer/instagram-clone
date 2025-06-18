@@ -1,0 +1,121 @@
+{% extends './base.html' %}
+{% load static %}
+
+
+{% block title %}Home{% endblock title %}
+
+{% block content %}
+
+
+<!-- Main Section -->
+<style>
+    body {
+        font-family: "Roboto", sans-serif;
+        font-size: 18px;
+        background-color: #fdfdfd;
+    }
+
+    .head_text {
+        color: white;
+    }
+
+    .card {
+        box-shadow: 0 16px 48px #E3E7EB;
+    }
+</style>
+
+<main class="projects">
+    
+    <!-- Search Result -->
+
+<header class="masthead">
+    <div class="overlay"></div>
+    <div class="container">
+        <div class="row">
+            <div class=" col-md-8 col-md-10 mx-auto">
+                <div class="site-heading">
+                    <h3 class=" site-heading my-4 mt-3 text-white"> Welcome to my awesome Blog </h3>
+                </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+{% include 'partials/search_form.html' with category_slug=category_slug  search_query=search_query %}
+    <!-- Search Filter -->
+
+    {% if posts %}
+      Results: {{posts.count}}
+    {% endif %}
+    
+ 
+<p>
+    <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWidthExample" aria-expanded="false" aria-controls="collapseWidthExample">
+      More filters
+    </button>
+</p>
+  <div style="min-height: 120px;">
+    <div class="collapse collapse-horizontal" id="collapseWidthExample">
+      <div class="card card-body" style="width: 300px;">
+        <form  method="get">
+            {{ filter.form.as_p }}
+            <input type="submit" />
+        </form>     
+     </div>
+    </div>
+  </div>
+
+<div class="container">
+    <div class="row">
+        <!-- Blog Entries Column -->
+        <div class="col-md-8 mt-3 left">
+            {% if page_obj %}
+            {% for post in page_obj %}
+                <div class="card mb-4">
+                  <div class="card-body">
+                      {% for tag in post.tags.all %}
+                      <a href="#" class="badge text-decoration-none bg-secondary">
+                        {{tag}}
+                        </a>
+                      {% endfor %}
+                        <h2 class="card-title">{{ post.title }}</h2>
+                        <p class="card-text text-muted h6">{{ post.author }} | {{ post.created_at}} </p>
+                        <p class="card-text">{{post.content|slice:":200" }}</p>
+                        <a href="{% url 'posts:post-detail' post.slug  %}" class="btn btn-primary">Read More &rarr;</a>
+                  </div>
+                </div>
+                {% empty %}
+            <h3>Results: 0</h3>
+            {% endfor %}
+            {% comment %} {% else %} 
+            {% for post in posts %}
+            <div class="card mb-4">
+              <div class="card-body">
+                  {% for tag in post.tags.all %}
+                  <a href="#" class="badge text-decoration-none bg-secondary">
+                    {{tag}}
+                    </a>
+                  {% endfor %}
+                    <h2 class="card-title">{{ post.title }}</h2>
+                    <p class="card-text text-muted h6">{{ post.author }} | {{ post.created_at}} </p>
+                    <p class="card-text">{{post.content|slice:":200" }}</p>
+                    <a href="{% url 'posts:post-detail' post.slug  %}" class="btn btn-primary">Read More &rarr;</a>
+              </div>
+            </div>
+            {% empty %}
+                <h3>Results: 0</h3>
+            {% endfor %} {% endcomment %}
+            {% endif %} 
+
+        </div>
+        {% include 'partials/sidebar.html' %}
+    </div>
+</div>
+
+  {% include 'partials/paginate-page-navigation.html' with page_obj=page_obj custom_range=custom_range %}
+</div>
+</main>
+{%endblock%}
+
+
+

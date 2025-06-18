@@ -1,0 +1,97 @@
+{% extends '../base.html' %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+    <div class="container">
+        <form method='POST' enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form| crispy }}
+			<span>
+				<a href="{% url 'users:forgotPassword' %}">this form</a>
+			</span>
+            <button class='btn btn-success'>Submit</button>
+        </form>
+    </div>
+{% endblock content %}
+
+
+{% comment %} 
+{% block content %}
+
+<section class="section-conten padding-y bg">
+
+{% include 'partials/alerts.html' %}
+<div class="container">
+	<div class="row">
+	<main class="col-md-9">
+		<article class="card">
+		<header class="card-header">
+			<strong class="d-inline-block mr-3">Edit your profile</strong>
+
+		</header>
+		<div class="card-body">
+			<div class="text-right">
+				<img src="{{profile.imgURL}}" alt="Profile Picture" width="100" style="border-radius:50px;">
+			</div>
+			<div class="row">
+			<div class="col-md-12">
+				<form  method="POST" enctype="multipart/form-data">
+					{% csrf_token %}
+					<div class="form-row">
+						<div class="form-group col-md-6">
+							<label>First Name</label>
+							{{form.first_name}}
+						</div>
+						<div class="form-group col-md-6">
+							<label>Last Name</label>
+							{{form.last_name}}
+						</div>
+					</div>
+					<div class="form-row">
+						<div class="form-group col-md-6">
+							<label>Username</label>
+							{{form.username}}
+						</div>
+						<div class="form-group col-md-6">
+							<label>Profile Picture</label>
+							{{form.featured_img}}
+						</div>
+					</div>
+					{% comment %} <div class="form-group">
+						<label>Address Line 1</label>
+						{{profile_form.address_line_1}}
+					</div>
+					<div class="form-group">
+						<label>Address Line 2</label>
+						{{profile_form.address_line_2}} {% endcomment %}
+					{% comment %} </div>
+					<div class="form-row"> {% endcomment %}
+						{% comment %} <div class="form-group col-md-4">
+							<label>City</label>
+							{{profile_form.city}}
+						</div>
+						<div class="form-group col-md-4">
+							<label>State</label>
+							{{profile_form.state}}
+						</div> {% endcomment %}
+						{% comment %} <div class="form-group col-md-4">
+							<label>Country</label>
+							{{form.country}}
+						</div> {% endcomment %}
+					{% comment %} </div>
+					<input type="submit" value="Save" class="btn btn-primary">
+				</form>
+			</div>
+
+			</div> <!-- row.// -->
+		</div> <!-- card-body .// -->
+
+		</article> <!-- order-group.// -->
+	</main>
+</div> <!-- row.// -->
+</div>
+
+
+</section>
+
+{% endblock %} {% endcomment %}
