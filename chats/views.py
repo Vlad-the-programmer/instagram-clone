@@ -1,13 +1,12 @@
 import logging
-from django.urls import reverse, reverse_lazy
-from django.shortcuts import redirect, get_object_or_404
+from django.urls import reverse
+from django.shortcuts import redirect
 # Auth
 from django.contrib.auth import get_user_model
 from django.contrib import messages
 # Generic class-based views
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import detail, edit, list
-from pyparsing import Optional
 
 from .forms import MessageCreateUpdateForm, CreateChatForm
 from .models import Chat, Message
@@ -63,11 +62,11 @@ class ChatDetailView(
             messages.error(request, 'Chat does not exist!')    
             return redirect(chat.get_absolute_url())
         return super().get(request, *args, **kwargs)
-    
-        
+
     def get_context_data(self,*args, **kwargs):
         context = super().get_context_data(**kwargs)
-        # context["_"] = None
+        chat = self.get_object()
+        context["receiver"] = chat.chat_to_user
         return context
         
 
@@ -79,7 +78,10 @@ class ChatCreateView(common_mixins.LoginRequiredMixin,
     
     def get_object(self):
         chat_to_user_id = self.kwargs.get('chat_to_user_id', '')
-        chat, created = Chat.objects.get_or_create(chat_to_user__id=chat_to_user_id)
+        chat, created = Chat.objects.get_or_create(chat_to_user__id=chat_to_user_id,
+                                                   author=self.request.user)
+        logger.info(f"Created({created}) chat for chat_to_user_id = {chat_to_user_id} \
+                    by {self.request.user}")
         return chat, created
     
     def post(self, request, *args, **kwargs):
@@ -88,15 +90,18 @@ class ChatCreateView(common_mixins.LoginRequiredMixin,
         chat_to_user_id = self.kwargs.get('chat_to_user_id', '')
         chat, created = self.get_object()
         print("Chat id  ", chat.id)
-        
-        if created:
-            chat.set_slug()
-            chat.author = self.request.user
-            chat.chat_to_user = Profile.objects.get(id=chat_to_user_id)
-            chat.save()
-            logging.info(f"Chat with {chat.chat_to_user.get_username()} \
-                was created by {chat.author.get_username()}")
-            
+
+        try:
+            if created:
+                chat.set_slug()
+                chat.author = self.request.user
+                chat.chat_to_user = Profile.objects.get(id=chat_to_user_id)
+                chat.save()
+                logging.info(f"Chat with {chat.chat_to_user.get_username()} \
+                    was created by {chat.author.get_username()}")
+        except Profile.DoesNotExist:
+            messages.error(request, 'User who you try to chat with does not exist!')
+            return redirect(reverse("chats:user-chats", kwargs={"user_id": chat.author.id}))
         return redirect(self.get_success_url())
     
     def get_success_url(self):

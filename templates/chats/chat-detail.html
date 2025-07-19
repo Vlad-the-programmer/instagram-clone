@@ -1,45 +1,201 @@
-<body>
+{% extends "../base.html" %}
 
-    <h1>Chat Room</h1>
-  
-    <form id="form">
-      <input type="text" name="message" autocomplete="off" />
-    </form>
-  
-    <div id="messages"></div>
-  
-  
+{% block content %}
+<body>
+    <div class="chat-container">
+        <h1>Chat Room: <span id="room-name">{{ chat.slug }}</span></h1>
+
+        <div class="chat-messages" id="messages">
+            <!-- Messages will appear here -->
+        </div>
+
+        <form id="chat-form" class="chat-form">
+            <input
+                type="text"
+                id="message-input"
+                name="message"
+                placeholder="Type your message here..."
+                autocomplete="off"
+                required
+            />
+            <button type="submit">Send</button>
+        </form>
+    </div>
+
     <script>
-  
-      let url = `ws://${window.location.host}/ws/socket-server/`;
-  
-      const chatSocket = new WebSocket(url);
-  
-      chatSocket.onmessage = function (e) {
-        let data = JSON.parse(e.data)
-        console.log('Data: ', data)
-  
-        if (data.type === 'chat') {
-          let messages = document.getElementById('messages')
-  
-          messages.insertAdjacentHTML('beforeend', `<div>
-                                                      <p>${data.message}</p>
-                                                    </div>`
-          )
+        const roomName = document.getElementById('room-name').textContent.trim();
+        const receiverId = {% if receiver.id %}{{ receiver.id }}{% else %}null{% endif %};
+
+        if (!receiverId) {
+            console.error("Receiver ID is missing");
+            // Handle the error appropriately - maybe redirect or show a message
         }
-  
-      }
-  
-      let form = document.getElementById('form')
-  
-      form.addEventListener('submit', (e) => {
-        e.preventDefault()
-        let message = e.target.message.value
-        chatSocket.send(JSON.stringify({
-          'message': message,
-        }))
-        form.reset()
-      })
-  
+
+        const chatSocket = new WebSocket(
+            window.location.protocol === 'https:'
+                ? `wss://${window.location.host}/ws/chat/${roomName}/${receiverId}/`
+                : `ws://${window.location.host}/ws/chat/${roomName}/${receiverId}/`
+        );
+
+        // UI Elements
+        const messagesContainer = document.getElementById('messages');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+
+        // Handle WebSocket connection
+        chatSocket.onopen = function(e) {
+            console.log("WebSocket connection established");
+            messagesContainer.insertAdjacentHTML('beforeend',
+                `<div class="system-message">Connected to chat room "${roomName}"</div>`
+            );
+        };
+
+        // Handle incoming messages
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+
+            // Handle message history
+            if (data.type === 'message_history') {
+                data.messages.forEach(msg => {
+                    addMessageToChat(msg.sender__username, msg.content, msg.timestamp);
+                });
+                return;
+            }
+
+            // Handle regular messages
+            if (data.message) {
+                addMessageToChat(data.sender, data.message, data.timestamp);
+            }
+        };
+
+        // Handle errors
+        chatSocket.onerror = function(error) {
+            console.error("WebSocket Error:", error);
+            messagesContainer.insertAdjacentHTML('beforeend',
+                `<div class="system-message error">Connection error occurred</div>`
+            );
+        };
+
+        // Handle disconnection
+        chatSocket.onclose = function(e) {
+            console.log("WebSocket closed", e);
+            messagesContainer.insertAdjacentHTML('beforeend',
+                `<div class="system-message">Disconnected from chat</div>`
+            );
+        };
+
+        // Handle form submission
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+
+            if (message) {
+                chatSocket.send(JSON.stringify({
+                    'message': message
+                }));
+                messageInput.value = '';
+                messageInput.focus();
+            }
+        });
+
+        // Helper function to add messages to the UI
+        function addMessageToChat(sender, message, timestamp) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+
+            const formattedTime = timestamp ? new Date(timestamp).toLocaleTimeString() : 'Just now';
+
+            messageElement.innerHTML = `
+                <div class="message-header">
+                    <span class="sender">${sender || 'Anonymous'}</span>
+                    <span class="timestamp">${formattedTime}</span>
+                </div>
+                <div class="message-content">${message}</div>
+            `;
+
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Auto-focus input on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            messageInput.focus();
+        });
     </script>
-  
+
+    <style>
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+
+        .chat-messages {
+            height: 500px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+
+        .chat-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        #message-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .chat-form button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .sender {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .timestamp {
+            color: #999;
+        }
+
+        .system-message {
+            text-align: center;
+            color: #666;
+            margin: 10px 0;
+            font-style: italic;
+        }
+
+        .system-message.error {
+            color: #d32f2f;
+        }
+    </style>
+</body>
+{% endblock %}

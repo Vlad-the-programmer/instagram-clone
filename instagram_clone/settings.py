@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     'followers.apps.FollowersConfig',
     'common.apps.CommonConfig',
     'socialaccountAuth.apps.SocialaccountauthConfig',
-    
+    'utilities.apps.UtilitiesConfig',
     
     # Third-party
     'django_filters',
@@ -69,6 +69,10 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if os.environ.get('DJANGO_AUTO_RELOAD'):
+    INSTALLED_APPS += ['django_extensions']
+    MIDDLEWARE.insert(0, 'django.middleware.http.ConditionalGetMiddleware')
 
 ROOT_URLCONF = 'instagram_clone.urls'
 
