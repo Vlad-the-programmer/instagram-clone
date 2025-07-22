@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import detail, edit, list
 
-from .forms import MessageCreateUpdateForm, CreateChatForm
+from .forms import MessageCreateUpdateForm
 from .models import Chat, Message
 from . import mixins
 from common import mixins as common_mixins
@@ -52,16 +52,15 @@ class ChatDetailView(
     template_name = 'chats/chat-detail.html'
     context_object_name = 'chat'
     slug_field = 'chat_slug'
-    
-    
-    def get(self, request, *args, **kwargs):
-        self.request = request
-        
-        chat = self.get_object()
-        if chat is None:
-            messages.error(request, 'Chat does not exist!')    
-            return redirect(chat.get_absolute_url())
-        return super().get(request, *args, **kwargs)
+
+    # def get(self, request, *args, **kwargs):
+    #     self.request = request
+    #
+    #     chat = self.get_object()
+    #     if chat is None:
+    #         messages.error(request, 'Chat does not exist!')
+    #         return redirect(chat.get_absolute_url())
+    #     return super().get(request, *args, **kwargs)
 
     def get_context_data(self,*args, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -73,46 +72,48 @@ class ChatDetailView(
 class ChatCreateView(common_mixins.LoginRequiredMixin,
                      edit.CreateView):
     template_name = 'chats/chat-detail.html'
-    form_class=CreateChatForm
-    context_object_name = 'chat'
-    
+    # form_class=CreateChatForm
+
     def get_object(self):
-        chat_to_user_id = self.kwargs.get('chat_to_user_id', '')
-        chat, created = Chat.objects.get_or_create(chat_to_user__id=chat_to_user_id,
+        _chat_to_user_id = self.kwargs.get('chat_to_user_id', '')
+        logger.debug(f"chat_to_user_id: {_chat_to_user_id}")
+        chat_to_user = Profile.objects.get(id=_chat_to_user_id)
+        chat, created = Chat.objects.get_or_create(chat_to_user=chat_to_user,
                                                    author=self.request.user)
-        logger.info(f"Created({created}) chat for chat_to_user_id = {chat_to_user_id} \
+        logger.info(f"Created({created}) chat for chat_to_user_id = {_chat_to_user_id} \
                     by {self.request.user}")
         return chat, created
     
     def post(self, request, *args, **kwargs):
         self.request = request
-        
-        chat_to_user_id = self.kwargs.get('chat_to_user_id', '')
-        chat, created = self.get_object()
-        print("Chat id  ", chat.id)
 
         try:
+            _chat_to_user_id = self.kwargs.get('chat_to_user_id', '')
+            chat, created = self.get_object()
+
             if created:
-                chat.set_slug()
                 chat.author = self.request.user
-                chat.chat_to_user = Profile.objects.get(id=chat_to_user_id)
+                chat.chat_to_user = Profile.objects.get(id=_chat_to_user_id)
                 chat.save()
                 logging.info(f"Chat with {chat.chat_to_user.get_username()} \
                     was created by {chat.author.get_username()}")
+            return redirect(self.get_success_url())
         except Profile.DoesNotExist:
             messages.error(request, 'User who you try to chat with does not exist!')
             return redirect(reverse("chats:user-chats", kwargs={"user_id": chat.author.id}))
-        return redirect(self.get_success_url())
-    
+
     def get_success_url(self):
         chat, _ = self.get_object()
         return chat.get_absolute_url()
-    
-    # # Chat chat_to_user_id ??
-    def form_valid(self, form):
-        return redirect(self.get_success_url())
+
+    def get_context_data(self, **kwargs):
+        context = {}
+        chat, _ = self.get_object()
+        context['chat'] = chat
+        context["receiver"] = chat.chat_to_user
+        return context
       
-      
+
 class ChatDeleteView(common_mixins.LoginRequiredMixin,
                      mixins.GetChatObjectMixin,
                      common_mixins.ChatAccessPermissionRequiredMixin,

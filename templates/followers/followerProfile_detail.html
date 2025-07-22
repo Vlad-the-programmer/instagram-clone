@@ -91,6 +91,13 @@
           >
             UnFollow
           </a>
+              {% if followingUser.id != user.id %}
+              <form action="{% url 'chats:chat-create' chat_to_user_id=followingUser.id %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Message</button>
+            </form>
+              {% endif %}
+
           {% else %}
           <a
             {% comment %} href="{% url 'users:follow-user' username=followingUser.username %}" {% endcomment %}

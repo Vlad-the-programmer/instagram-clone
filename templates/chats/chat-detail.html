@@ -13,113 +13,125 @@
             <input
                 type="text"
                 id="message-input"
-                name="message"
                 placeholder="Type your message here..."
                 autocomplete="off"
                 required
             />
-            <button type="submit">Send</button>
+            <button type="button" id="send-button">Send</button>
         </form>
     </div>
 
     <script>
-        const roomName = document.getElementById('room-name').textContent.trim();
-        const receiverId = {% if receiver.id %}{{ receiver.id }}{% else %}null{% endif %};
+        // WebSocket connection setup
+        let chatSocket;
+        let isConnected = false;
 
-        if (!receiverId) {
-            console.error("Receiver ID is missing");
-            // Handle the error appropriately - maybe redirect or show a message
-        }
+        function connectWebSocket() {
+            const roomName = document.getElementById('room-name').textContent.trim();
+            const receiverId = document.getElementById('receiver-data').dataset.id;
 
-        const chatSocket = new WebSocket(
-            window.location.protocol === 'https:'
-                ? `wss://${window.location.host}/ws/chat/${roomName}/${receiverId}/`
-                : `ws://${window.location.host}/ws/chat/${roomName}/${receiverId}/`
-        );
-
-        // UI Elements
-        const messagesContainer = document.getElementById('messages');
-        const chatForm = document.getElementById('chat-form');
-        const messageInput = document.getElementById('message-input');
-
-        // Handle WebSocket connection
-        chatSocket.onopen = function(e) {
-            console.log("WebSocket connection established");
-            messagesContainer.insertAdjacentHTML('beforeend',
-                `<div class="system-message">Connected to chat room "${roomName}"</div>`
-            );
-        };
-
-        // Handle incoming messages
-        chatSocket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-
-            // Handle message history
-            if (data.type === 'message_history') {
-                data.messages.forEach(msg => {
-                    addMessageToChat(msg.sender__username, msg.content, msg.timestamp);
-                });
+            if (!receiverId) {
+                showSystemMessage("Error: Missing recipient information", true);
                 return;
             }
 
-            // Handle regular messages
-            if (data.message) {
-                addMessageToChat(data.sender, data.message, data.timestamp);
-            }
-        };
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            chatSocket = new WebSocket(`${protocol}${window.location.host}/ws/chat/${roomName}/${receiverId}/`);
 
-        // Handle errors
-        chatSocket.onerror = function(error) {
-            console.error("WebSocket Error:", error);
-            messagesContainer.insertAdjacentHTML('beforeend',
-                `<div class="system-message error">Connection error occurred</div>`
-            );
-        };
+            chatSocket.onopen = function() {
+                isConnected = true;
+                showSystemMessage("Connected to chat");
+                document.getElementById('send-button').disabled = false;
+            };
 
-        // Handle disconnection
-        chatSocket.onclose = function(e) {
-            console.log("WebSocket closed", e);
-            messagesContainer.insertAdjacentHTML('beforeend',
-                `<div class="system-message">Disconnected from chat</div>`
-            );
-        };
+            chatSocket.onmessage = function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.message) {
+                        addMessageToChat(data.sender, data.message, data.timestamp);
+                    }
+                } catch (error) {
+                    console.error("Error processing message:", error);
+                }
+            };
 
-        // Handle form submission
-        chatForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+            chatSocket.onclose = function() {
+                isConnected = false;
+                showSystemMessage("Disconnected - attempting to reconnect...", true);
+                document.getElementById('send-button').disabled = true;
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            chatSocket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+                showSystemMessage("Connection error", true);
+            };
+        }
+
+        // Message sending function
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
             const message = messageInput.value.trim();
 
-            if (message) {
-                chatSocket.send(JSON.stringify({
-                    'message': message
-                }));
-                messageInput.value = '';
-                messageInput.focus();
-            }
-        });
+            if (!message) return;
 
-        // Helper function to add messages to the UI
+            if (isConnected) {
+                try {
+                    chatSocket.send(JSON.stringify({
+                        'message': message
+                    }));
+                    messageInput.value = '';
+                } catch (error) {
+                    showSystemMessage("Failed to send message", true);
+                    console.error("Send error:", error);
+                }
+            } else {
+                showSystemMessage("Not connected - message not sent", true);
+            }
+        }
+
+        // Helper functions
+        function showSystemMessage(text, isError = false) {
+            const msg = document.createElement('div');
+            msg.className = `system-message ${isError ? 'error' : ''}`;
+            msg.textContent = text;
+            document.getElementById('messages').appendChild(msg);
+        }
+
         function addMessageToChat(sender, message, timestamp) {
             const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-
-            const formattedTime = timestamp ? new Date(timestamp).toLocaleTimeString() : 'Just now';
-
+            messageElement.className = 'message';
             messageElement.innerHTML = `
                 <div class="message-header">
                     <span class="sender">${sender || 'Anonymous'}</span>
-                    <span class="timestamp">${formattedTime}</span>
+                    <span class="timestamp">${new Date(timestamp).toLocaleTimeString()}</span>
                 </div>
                 <div class="message-content">${message}</div>
             `;
-
-            messagesContainer.appendChild(messageElement);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            document.getElementById('messages').appendChild(messageElement);
         }
 
-        // Auto-focus input on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            messageInput.focus();
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add receiver ID to HTML
+            const receiverData = document.createElement('div');
+            receiverData.id = 'receiver-data';
+            receiverData.dataset.id = "{{ receiver.id|default:'' }}";
+            receiverData.style.display = 'none';
+            document.body.appendChild(receiverData);
+
+            // Set up send button
+            document.getElementById('send-button').addEventListener('click', sendMessage);
+
+            // Allow Enter key to send
+            document.getElementById('message-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            // Connect WebSocket
+            connectWebSocket();
         });
     </script>
 
@@ -196,6 +208,22 @@
         .system-message.error {
             color: #d32f2f;
         }
+
+        #send-button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+    }
+    .connection-status {
+        margin-bottom: 10px;
+        padding: 5px;
+        text-align: center;
+    }
+    .connected {
+        background-color: #dff0d8;
+    }
+    .disconnected {
+        background-color: #f2dede;
+    }
     </style>
 </body>
 {% endblock %}

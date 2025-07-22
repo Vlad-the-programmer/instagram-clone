@@ -45,14 +45,24 @@ class Chat(TimeStampedUUIDModel):
         verbose_name = _("Chat")
         verbose_name_plural = _("Chats")
         ordering = ['-created_at']
+        unique_together = ('author', 'chat_to_user')
         
     def __str__(self):
         return self.slug
         
     def set_slug(self):
-        self.slug = slugify(str(self.id) + "-from-" + self.author.username  \
-                                     + "-to-" + self.chat_to_user.username )
-        
+        self.slug = slugify(f"from-{self.author.username}-to-{self.chat_to_user.username}")
+
+    def save(
+        self,
+        force_insert = ...,
+        force_update = ...,
+        using = ...,
+        update_fields = ...,
+    ):
+        self.set_slug()
+        return super(Chat, self).save()
+
     def get_absolute_url(self):
         return reverse('chats:chat-detail', kwargs={'chat_slug': self.slug})
     
@@ -105,7 +115,7 @@ class Message(TimeStampedUUIDModel):
         ordering = ['-created_at']
         
     def __str__(self):
-        return self.id + " " + self.author.username
+        return f"{self.id} {self.author.username}"
     
     @property
     def imageURL(self):
