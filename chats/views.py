@@ -1,4 +1,6 @@
 import logging
+
+from django.db.models import Q
 from django.urls import reverse
 from django.shortcuts import redirect
 # Auth
@@ -19,33 +21,25 @@ logger = logging.getLogger(__name__)
 Profile = get_user_model()
 
 
-class ChatListView(LoginRequiredMixin,
-                   common_mixins.LoginRequiredMixin,
-                   list.ListView
-                ):
+class ChatListView(common_mixins.LoginRequiredMixin,
+                   list.ListView):
     model = Chat
     template_name = 'chats/chats-list.html'
     context_object_name = 'chats'
-        
-        
-    def get(self, request, *args, **kwargs):
-        self.request = request
-        return super().get(request, *args, **kwargs)
-    
     
     def get_queryset(self):
-        return Chat.objects.filter(author=self.request.user)
+        current_user = self.request.user
+        queryset = (Chat.objects.filter(
+                    Q(author=current_user) | Q(chat_to_user=current_user))
+                .filter(is_active=True)
+                .select_related('author', 'chat_to_user'))
+        logger.debug(f"Current user: {current_user.username} chats: {queryset.count()}")
+        return queryset
     
     
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        return context
-    
-    
-class ChatDetailView(   
-                        common_mixins.LoginRequiredMixin,
+class ChatDetailView(common_mixins.LoginRequiredMixin,
                         mixins.GetChatObjectMixin,
-                        common_mixins.ChatAccessPermissionRequiredMixin,
+                        mixins.ChatAccessPermissionRequiredMixin,
                         detail.DetailView
                     ):
     model = Chat
@@ -53,14 +47,6 @@ class ChatDetailView(
     context_object_name = 'chat'
     slug_field = 'chat_slug'
 
-    # def get(self, request, *args, **kwargs):
-    #     self.request = request
-    #
-    #     chat = self.get_object()
-    #     if chat is None:
-    #         messages.error(request, 'Chat does not exist!')
-    #         return redirect(chat.get_absolute_url())
-    #     return super().get(request, *args, **kwargs)
 
     def get_context_data(self,*args, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -107,7 +93,7 @@ class ChatCreateView(common_mixins.LoginRequiredMixin,
         return chat.get_absolute_url()
 
     def get_context_data(self, **kwargs):
-        context = {}
+        context = self.get_context_data(**kwargs)
         chat, _ = self.get_object()
         context['chat'] = chat
         context["receiver"] = chat.chat_to_user
@@ -116,7 +102,7 @@ class ChatCreateView(common_mixins.LoginRequiredMixin,
 
 class ChatDeleteView(common_mixins.LoginRequiredMixin,
                      mixins.GetChatObjectMixin,
-                     common_mixins.ChatAccessPermissionRequiredMixin,
+                     mixins.ChatAccessPermissionRequiredMixin,
                      edit.DeleteView
                     ):
     model = Chat
@@ -148,7 +134,7 @@ class ChatDeleteView(common_mixins.LoginRequiredMixin,
     
     
 class MessageCreateView(common_mixins.LoginRequiredMixin,
-                        common_mixins.ChatAccessPermissionRequiredMixin,
+                        mixins.ChatAccessPermissionRequiredMixin,
                         edit.CreateView):
     template_name = 'chats/chat-detail.html'
     model = Message
@@ -186,7 +172,7 @@ class MessageCreateView(common_mixins.LoginRequiredMixin,
         
 class MessageUpdateView(common_mixins.LoginRequiredMixin,
                         mixins.GetMessageObjectMixin,
-                        common_mixins.MessageAccessPermissionRequiredMixin,
+                        mixins.MessageAccessPermissionRequiredMixin,
                         edit.UpdateView
                         ):
     template_name = 'chats/chat-detail.html'
@@ -239,7 +225,7 @@ class MessageUpdateView(common_mixins.LoginRequiredMixin,
 
 class MessageDeleteView(common_mixins.LoginRequiredMixin,
                         mixins.GetMessageObjectMixin,
-                        common_mixins.MessageAccessPermissionRequiredMixin,
+                        mixins.MessageAccessPermissionRequiredMixin,
                         edit.DeleteView
                         ):
     model = Message

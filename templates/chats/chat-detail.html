@@ -44,12 +44,16 @@
                 document.getElementById('send-button').disabled = false;
             };
 
+            function handleIncomingMessage(data) {
+                if (data.type === 'chat_message') {
+                    addMessageToChat(data.sender, data.message, data.timestamp);
+                }
+            }
+
             chatSocket.onmessage = function(e) {
                 try {
                     const data = JSON.parse(e.data);
-                    if (data.message) {
-                        addMessageToChat(data.sender, data.message, data.timestamp);
-                    }
+                    handleIncomingMessage(data);
                 } catch (error) {
                     console.error("Error processing message:", error);
                 }
@@ -98,6 +102,11 @@
             document.getElementById('messages').appendChild(msg);
         }
 
+        function scrollToBottom() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
         function addMessageToChat(sender, message, timestamp) {
             const messageElement = document.createElement('div');
             messageElement.className = 'message';
@@ -109,6 +118,7 @@
                 <div class="message-content">${message}</div>
             `;
             document.getElementById('messages').appendChild(messageElement);
+            scrollToBottom();
         }
 
         // Initialize

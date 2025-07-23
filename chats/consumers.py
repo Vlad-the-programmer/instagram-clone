@@ -15,13 +15,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.user = self.scope['user']
 
         try:
-            # Get receiver asynchronously
             self.receiver = await self.get_receiver()
             if not self.receiver:
                 await self.close()
                 return
 
-            # Join room group
             await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
@@ -29,17 +27,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             await self.accept()
 
-            # Send message history on connect
+            # Get or create room and history
             room = await self.get_or_create_room()
             history = await self.get_message_history(room)
-            await self.send(text_data=json.dumps({
-                'type': 'message_history',
-                'messages': history
-            }))
+
+            # Send history as separate messages
+            for message in history:
+                await self.send(text_data=json.dumps({
+                    'type': 'chat_message',
+                    'message': message['message'],
+                    'sender': message['author__username'],
+                    'timestamp': message['created_at']
+                }))
 
         except Exception as e:
             print(f"Connection error: {str(e)}")
             await self.close()
+
+    @database_sync_to_async
+    def get_message_history(self, room):
+        messages = Message.objects.filter(chat=room).order_by('created_at')
+        return [
+            {
+                'author__username': msg.author.username,
+                'message': msg.message,
+                'created_at': msg.created_at.isoformat()
+            }
+            for msg in messages
+        ]
 
     @database_sync_to_async
     def get_receiver(self):
@@ -56,12 +71,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             chat_to_user=self.receiver,
         )
         return room
-
-    @database_sync_to_async
-    def get_message_history(self, room):
-        return list(Message.objects.filter(chat=room)
-                    .order_by('created_at')
-                    .values('author__username', 'message', 'created_at', 'updated_at'))
 
     @database_sync_to_async
     def save_message(self, room, content):

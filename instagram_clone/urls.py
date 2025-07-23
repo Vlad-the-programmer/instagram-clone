@@ -12,6 +12,7 @@ urlpatterns = [
     path('likes/',    include('likes.urls', namespace='likes')),
     path('chats/',    include('chats.urls', namespace='chats')),
     path('comments/', include('comments.urls', namespace='comments')),
+    path('exceptions/', include('exceptions.urls', namespace='exceptions')),
 ]
 
 if settings.DEBUG:

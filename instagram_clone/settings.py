@@ -43,7 +43,8 @@ INSTALLED_APPS = [
     'common.apps.CommonConfig',
     'socialaccountAuth.apps.SocialaccountauthConfig',
     'utilities.apps.UtilitiesConfig',
-    
+    'exceptions.apps.ExceptionsConfig',
+
     # Third-party
     'django_filters',
     'django_countries',
@@ -367,12 +368,6 @@ JAZZMIN_UI_TWEAKS = {
     },
 }
 
-
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels.layers.InMemoryChannelLayer'
-#     }
-# }
 
 CHANNEL_LAYERS = {
     "default": {
