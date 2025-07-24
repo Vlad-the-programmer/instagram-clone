@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.text import slugify
 from autoslug import AutoSlugField
 
+from chats.managers import ActiveChatsManager, ActiveMessagesManager
 from common.models import TimeStampedUUIDModel
 
 
@@ -15,6 +16,8 @@ class STATUS(models.TextChoices):
     
     
 class Chat(TimeStampedUUIDModel):
+    active_chats = ActiveChatsManager()
+
     slug = models.SlugField(   
                             unique=True,
                             max_length=100,
@@ -68,6 +71,8 @@ class Chat(TimeStampedUUIDModel):
     
     
 class Message(TimeStampedUUIDModel):
+    active_messages = ActiveMessagesManager()
+
     message = models.TextField(
                             max_length=500,
                             blank=True, 

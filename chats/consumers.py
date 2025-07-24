@@ -1,4 +1,6 @@
 import json
+from urllib.parse import parse_qs
+
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
@@ -14,6 +16,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f'chat_{self.room_name}_{self.receiver_id}'
         self.user = self.scope['user']
 
+        # Parse query parameters
+        query_string = self.scope['query_string'].decode()
+        self.last_message_id = int(parse_qs(query_string).get('last_id', [0])[0])
+
         try:
             self.receiver = await self.get_receiver()
             if not self.receiver:
@@ -28,8 +34,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.accept()
 
             # Get or create room and history
-            room = await self.get_or_create_room()
-            history = await self.get_message_history(room)
+            room = await self.get_room()
+
+
+            history = await self.get_message_history(room, self.last_message_id)
 
             # Send history as separate messages
             for message in history:
@@ -37,7 +45,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'type': 'chat_message',
                     'message': message['message'],
                     'sender': message['author__username'],
-                    'timestamp': message['created_at']
+                    'timestamp': message['created_at'],
+                    'id': message['id']
                 }))
 
         except Exception as e:
@@ -45,13 +54,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close()
 
     @database_sync_to_async
-    def get_message_history(self, room):
-        messages = Message.objects.filter(chat=room).order_by('created_at')
+    def get_message_history(self, room, last_message_id=0):
+        messages = Message.active_messages.filter(
+            chat=room,
+            id__gt=last_message_id
+        ).order_by('created_at')
         return [
             {
                 'author__username': msg.author.username,
                 'message': msg.message,
-                'created_at': msg.created_at.isoformat()
+                'created_at': msg.created_at.isoformat(),
+                'id': msg.pkid
             }
             for msg in messages
         ]
@@ -64,17 +77,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return None
 
     @database_sync_to_async
-    def get_or_create_room(self):
-        room, created = Chat.objects.get_or_create(
-            slug=self.room_name,
-            author=self.user,
-            chat_to_user=self.receiver,
+    def get_room(self):
+        room = Chat.active_chats.get(
+            slug=self.room_name
         )
         return room
 
     @database_sync_to_async
     def save_message(self, room, content):
-        Message.objects.create(
+        Message._default_manager.create(
             chat=room,
             author=self.user,
             sent_for=self.receiver,
@@ -97,16 +108,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 return
 
             if not isinstance(self.user, AnonymousUser):
-                room = await self.get_or_create_room()
-                await self.save_message(room, message)
+                room = await self.get_room()
+                message_obj = await self.save_message(room, message)
 
+                # Broadcast to the entire group (including sender)
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
                         'type': 'chat_message',
-                        'message': message,
+                        'message': message_obj.message,
                         'sender': self.user.username,
-                        'timestamp': timezone.now().isoformat()
+                        'timestamp': message_obj.created_at.isoformat(),
+                        'id': message_obj.id
                     }
                 )
         except Exception as e:
@@ -120,5 +133,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'message': event['message'],
             'sender': event['sender'],
-            'timestamp': event['timestamp']
+            'timestamp': event['timestamp'],
+            'id': event['id']
         }))

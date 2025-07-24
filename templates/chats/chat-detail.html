@@ -6,7 +6,15 @@
         <h1>Chat Room: <span id="room-name">{{ chat.slug }}</span></h1>
 
         <div class="chat-messages" id="messages">
-            <!-- Messages will appear here -->
+            {% for message in initial_messages %}
+            <div class="message" data-message-id="{{ message.id }}">
+                <div class="message-header">
+                    <span class="sender">{{ message.author.username }}</span>
+                    <span class="timestamp">{{ message.created_at|time }}</span>
+                </div>
+                <div class="message-content">{{ message.message }}</div>
+            </div>
+            {% endfor %}
         </div>
 
         <form id="chat-form" class="chat-form">
@@ -22,75 +30,87 @@
     </div>
 
     <script>
+        // Initialize message tracking
+        const pendingMessages = new Set();
+        const receivedMessageIds = new Set(
+            Array.from(document.querySelectorAll('.message')).map(el =>
+                parseInt(el.dataset.messageId) || 0
+            )
+        );
+
         // WebSocket connection setup
         let chatSocket;
         let isConnected = false;
 
         function connectWebSocket() {
-            const roomName = document.getElementById('room-name').textContent.trim();
-            const receiverId = document.getElementById('receiver-data').dataset.id;
+        const roomName = document.getElementById('room-name').textContent.trim();
+        const receiverId = document.getElementById('receiver-data').dataset.id;
+        const lastMessageId = Math.max(...receivedMessageIds) || 0;
 
-            if (!receiverId) {
-                showSystemMessage("Error: Missing recipient information", true);
-                return;
-            }
-
-            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            chatSocket = new WebSocket(`${protocol}${window.location.host}/ws/chat/${roomName}/${receiverId}/`);
-
-            chatSocket.onopen = function() {
-                isConnected = true;
-                showSystemMessage("Connected to chat");
-                document.getElementById('send-button').disabled = false;
-            };
-
-            function handleIncomingMessage(data) {
-                if (data.type === 'chat_message') {
-                    addMessageToChat(data.sender, data.message, data.timestamp);
-                }
-            }
-
-            chatSocket.onmessage = function(e) {
-                try {
-                    const data = JSON.parse(e.data);
-                    handleIncomingMessage(data);
-                } catch (error) {
-                    console.error("Error processing message:", error);
-                }
-            };
-
-            chatSocket.onclose = function() {
-                isConnected = false;
-                showSystemMessage("Disconnected - attempting to reconnect...", true);
-                document.getElementById('send-button').disabled = true;
-                setTimeout(connectWebSocket, 5000);
-            };
-
-            chatSocket.onerror = function(error) {
-                console.error("WebSocket error:", error);
-                showSystemMessage("Connection error", true);
-            };
+        if (!receiverId) {
+            showSystemMessage("Error: Missing recipient information", true);
+            return;
         }
 
-        // Message sending function
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        chatSocket = new WebSocket(
+            `${protocol}${window.location.host}/ws/chat/${roomName}/${receiverId}/?last_id=${lastMessageId}`
+        );
+
+        chatSocket.onopen = function() {
+            isConnected = true;
+            showSystemMessage("Connected to chat");
+            document.getElementById('send-button').disabled = false;
+        };
+
+        chatSocket.onmessage = function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                handleIncomingMessage(data);
+            } catch (error) {
+                console.error("Error processing message:", error);
+            }
+        };
+
+        chatSocket.onclose = function() {
+            isConnected = false;
+            showSystemMessage("Disconnected - attempting to reconnect...", true);
+            document.getElementById('send-button').disabled = true;
+            setTimeout(connectWebSocket, 5000);
+        };
+
+        chatSocket.onerror = function(error) {
+            console.error("WebSocket error:", error);
+            showSystemMessage("Connection error", true);
+        };
+    }
+
         function sendMessage() {
             const messageInput = document.getElementById('message-input');
             const message = messageInput.value.trim();
 
             if (!message) return;
 
-            if (isConnected) {
-                try {
-                    chatSocket.send(JSON.stringify({
-                        'message': message
-                    }));
-                    messageInput.value = '';
-                } catch (error) {
-                    showSystemMessage("Failed to send message", true);
-                    console.error("Send error:", error);
-                }
-            } else {
-                showSystemMessage("Not connected - message not sent", true);
+            if (chatSocket.readyState !== WebSocket.OPEN) {
+                showSystemMessage("Not connected - please wait", true);
+                return;
+            }
+
+            // Create temporary message with loading state
+            const tempId = 'temp-' + Date.now();
+            addMessageToChat("You", message, new Date().toISOString(), tempId, true);
+            pendingMessages.add(tempId);
+
+            try {
+                chatSocket.send(JSON.stringify({
+                    'message': message,
+                    'temp_id': tempId
+                }));
+                messageInput.value = '';
+            } catch (error) {
+                showSystemMessage("Failed to send message", true);
+                document.querySelector(`[data-message-id="${tempId}"]`).classList.add('failed');
+                pendingMessages.delete(tempId);
             }
         }
 
@@ -107,18 +127,12 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        function addMessageToChat(sender, message, timestamp) {
-            const messageElement = document.createElement('div');
-            messageElement.className = 'message';
-            messageElement.innerHTML = `
-                <div class="message-header">
-                    <span class="sender">${sender || 'Anonymous'}</span>
-                    <span class="timestamp">${new Date(timestamp).toLocaleTimeString()}</span>
-                </div>
-                <div class="message-content">${message}</div>
-            `;
-            document.getElementById('messages').appendChild(messageElement);
-            scrollToBottom();
+        // Helper function to format timestamp
+        function formatTimestamp(isoString) {
+            return new Date(isoString).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         }
 
         // Initialize
@@ -146,6 +160,24 @@
     </script>
 
     <style>
+        .message.pending {
+            opacity: 0.7;
+        }
+
+        .message .status {
+            font-size: 0.8em;
+            color: #666;
+            margin-left: 10px;
+            font-style: italic;
+        }
+
+        .message.failed {
+            border-left: 3px solid #d32f2f;
+        }
+
+        .message.sent {
+            border-left: 3px solid #4CAF50;
+        }
         .chat-container {
             max-width: 800px;
             margin: 0 auto;

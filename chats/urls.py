@@ -4,9 +4,9 @@ from . import views
 app_name = 'chats'
 
 urlpatterns = [
-    path('chat/messages/create/<slug:chat_slug>', 
-                                            views.MessageCreateView.as_view(),    
-                                                    name='messages-create'),
+    # path('chat/messages/create/<slug:chat_slug>',
+    #                                         views.MessageCreateView.as_view(),
+    #                                                 name='messages-create'),
     path('chat/<slug:chat_slug>/messages/update/<uuid:pk>/', views.MessageUpdateView.as_view(),
                                                     name='messages-update'),
     path('chat/<slug:chat_slug>/messages/delete/<uuid:pk>/', views.MessageDeleteView.as_view(),

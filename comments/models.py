@@ -7,7 +7,6 @@ from autoslug import AutoSlugField
 
 from common.models import TimeStampedUUIDModel
 from .managers import ActiveCommentsManager
-from common import utils as custom_utils
 
 
 class Comment(TimeStampedUUIDModel):
@@ -69,8 +68,6 @@ class Comment(TimeStampedUUIDModel):
                                 blank=True, 
                                 upload_to=f'comments/{slug}'
                             )
-    disabled = models.BooleanField(default=False, blank=True, null=True)
-    
     
     class Meta:
         verbose_name = _("Comments")
@@ -79,15 +76,14 @@ class Comment(TimeStampedUUIDModel):
         
     def __str__(self):
         return self.slug
-    
+
+    def set_slug(self):
+        self.slug = f"{self.title}-{self.pkid}"
+
     def save(self, *args, **kwargs):
         print("Slug", self.slug)
-        # existingComment = Comment.active_comments.filter(slug=self.slug)
-        
-        # if existingComment.exists():
-        #     self.slug = slugify(self.title + "-" + self.pkid) 
-        custom_utils.set_slug(self, Comment)
-        return  super(Comment, self).save(*args, **kwargs)
+        self.set_slug()
+        return super(Comment, self).save(*args, **kwargs)
     
     @property
     def imageURL(self):
