@@ -3,6 +3,7 @@
 {% block content %}
 <body>
     <div class="chat-container">
+        <div id="connection-status" class="connection-status disconnected">Connecting...</div>
         <h1>Chat Room: <span id="room-name">{{ chat.slug }}</span></h1>
 
         <div class="chat-messages" id="messages">
@@ -11,6 +12,16 @@
                 <div class="message-header">
                     <span class="sender">{{ message.author.username }}</span>
                     <span class="timestamp">{{ message.created_at|time }}</span>
+                    {% if message.author.id == request.user.id %}
+                    <button class="edit-btn" title="Edit message">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                             stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    {% endif %}
                 </div>
                 <div class="message-content">{{ message.message }}</div>
             </div>
@@ -30,88 +41,122 @@
     </div>
 
     <script>
-        // Initialize message tracking
-        const pendingMessages = new Set();
-        const receivedMessageIds = new Set(
-            Array.from(document.querySelectorAll('.message')).map(el =>
-                parseInt(el.dataset.messageId) || 0
-            )
-        );
-
-        // WebSocket connection setup
+        // Global variables
+        // WebSocket connection management
         let chatSocket;
-        let isConnected = false;
+        let reconnectTimeout;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+        let reconnectAttempts = 0;
+        const BASE_RECONNECT_DELAY = 1000; // 1 second
 
-        function connectWebSocket() {
-        const roomName = document.getElementById('room-name').textContent.trim();
-        const receiverId = document.getElementById('receiver-data').dataset.id;
-        const lastMessageId = Math.max(...receivedMessageIds) || 0;
-
-        if (!receiverId) {
-            showSystemMessage("Error: Missing recipient information", true);
-            return;
+        function getAuthToken() {
+            // Get CSRF token from cookies
+            const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('csrftoken='))
+                ?.split('=')[1];
+            return cookieValue || '';
         }
 
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        chatSocket = new WebSocket(
-            `${protocol}${window.location.host}/ws/chat/${roomName}/${receiverId}/?last_id=${lastMessageId}`
-        );
-
-        chatSocket.onopen = function() {
-            isConnected = true;
-            showSystemMessage("Connected to chat");
-            document.getElementById('send-button').disabled = false;
-        };
-
-        chatSocket.onmessage = function(e) {
-            try {
-                const data = JSON.parse(e.data);
-                handleIncomingMessage(data);
-            } catch (error) {
-                console.error("Error processing message:", error);
+        function connectWebSocket() {
+            // Clear any existing connection
+            if (chatSocket) {
+                chatSocket.close();
+                chatSocket = null;
             }
-        };
+            clearTimeout(reconnectTimeout);
 
-        chatSocket.onclose = function() {
-            isConnected = false;
-            showSystemMessage("Disconnected - attempting to reconnect...", true);
-            document.getElementById('send-button').disabled = true;
-            setTimeout(connectWebSocket, 5000);
-        };
+            const roomName = encodeURIComponent(document.getElementById('room-name').textContent.trim());
+            const receiverId = document.getElementById('receiver-data')?.dataset.id;
+            const currentUserId = document.getElementById('receiver-data')?.dataset.sender_id;
 
-        chatSocket.onerror = function(error) {
-            console.error("WebSocket error:", error);
-            showSystemMessage("Connection error", true);
-        };
-    }
-
-        function sendMessage() {
-            const messageInput = document.getElementById('message-input');
-            const message = messageInput.value.trim();
-
-            if (!message) return;
-
-            if (chatSocket.readyState !== WebSocket.OPEN) {
-                showSystemMessage("Not connected - please wait", true);
+            if (!receiverId || !currentUserId) {
+                showSystemMessage("Error: Missing user information", true);
                 return;
             }
 
-            // Create temporary message with loading state
-            const tempId = 'temp-' + Date.now();
-            addMessageToChat("You", message, new Date().toISOString(), tempId, true);
-            pendingMessages.add(tempId);
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${protocol}${window.location.host}/ws/chat/${roomName}/${receiverId}/?token=${getAuthToken()}`;
 
-            try {
-                chatSocket.send(JSON.stringify({
-                    'message': message,
-                    'temp_id': tempId
-                }));
-                messageInput.value = '';
-            } catch (error) {
-                showSystemMessage("Failed to send message", true);
-                document.querySelector(`[data-message-id="${tempId}"]`).classList.add('failed');
-                pendingMessages.delete(tempId);
+            console.log("Attempting WebSocket connection to:", wsUrl);
+            updateConnectionStatus("Connecting...", "connecting");
+
+            chatSocket = new WebSocket(wsUrl);
+
+            // Set timeout for handshake completion
+            const handshakeTimeout = setTimeout(() => {
+                if (chatSocket.readyState !== WebSocket.OPEN) {
+                    console.error("Handshake timed out");
+                    chatSocket.close();
+                    handleConnectionFailure();
+                }
+            }, 5000); // 5 second handshake timeout
+
+            chatSocket.onopen = function() {
+                clearTimeout(handshakeTimeout);
+                console.log("WebSocket handshake completed");
+                handleSuccessfulConnection();
+            };
+
+            chatSocket.onmessage = function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    console.log("Received WebSocket message:", data);
+                    handleIncomingMessage(data);
+                } catch (error) {
+                    console.error("Error processing message:", error);
+                }
+            };
+
+            chatSocket.onclose = function(e) {
+                console.log("WebSocket connection closed", e);
+                updateConnectionStatus("Disconnected - Trying to reconnect...", "disconnected");
+                document.getElementById('send-button').disabled = true;
+
+                if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    reconnectAttempts++;
+                    const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts), 30000);
+                    console.log(`Reconnect attempt ${reconnectAttempts} in ${delay}ms`);
+                    reconnectTimeout = setTimeout(connectWebSocket, delay);
+                } else {
+                    showSystemMessage("Failed to connect to chat server. Please refresh the page.", true);
+                }
+            };
+
+            chatSocket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+                updateConnectionStatus("Connection error", "error");
+            };
+        }
+
+        function attemptReconnect() {
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts), 30000);
+                console.log(`Reconnect attempt ${reconnectAttempts} in ${delay}ms`);
+                reconnectTimeout = setTimeout(connectWebSocket, delay);
+            } else {
+                showSystemMessage("Failed to connect to chat server. Please refresh the page.", true);
             }
+        }
+
+        function handleSuccessfulConnection() {
+            reconnectAttempts = 0;
+            updateConnectionStatus("Connected", "connected");
+            document.getElementById('send-button').disabled = false;
+
+            // Verify connection with ping
+            chatSocket.send(JSON.stringify({
+                type: 'handshake_verify',
+                user_id: document.getElementById('receiver-data').dataset.sender_id,
+                timestamp: new Date().toISOString()
+            }));
+        }
+
+        function handleConnectionFailure() {
+            console.error("WebSocket connection failed");
+            updateConnectionStatus("Connection failed", "error");
+            attemptReconnect();
         }
 
         // Helper functions
@@ -120,6 +165,7 @@
             msg.className = `system-message ${isError ? 'error' : ''}`;
             msg.textContent = text;
             document.getElementById('messages').appendChild(msg);
+            scrollToBottom();
         }
 
         function scrollToBottom() {
@@ -127,7 +173,6 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        // Helper function to format timestamp
         function formatTimestamp(isoString) {
             return new Date(isoString).toLocaleTimeString([], {
                 hour: '2-digit',
@@ -135,46 +180,277 @@
             });
         }
 
-        // Initialize
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connection-status');
+            const sendButton = document.getElementById('send-button');
+
+            if (connected) {
+                statusElement.textContent = 'Connected';
+                statusElement.className = 'connection-status connected';
+                sendButton.disabled = false;
+            } else {
+                statusElement.textContent = 'Disconnected - Trying to reconnect...';
+                statusElement.className = 'connection-status disconnected';
+                sendButton.disabled = true;
+            }
+        }
+
+        // Message handling
+        function handleIncomingMessage(data) {
+            console.log("Processing message:", data);
+            switch (data.type) {
+                case 'handshake_complete':
+                    console.log("Handshake completed with server");
+                    // Enable UI elements
+                    break;
+                case 'handshake_failed':
+                    console.error("Handshake failed:", data.error);
+                    showSystemMessage("Connection failed: " + data.error, true);
+                    break;
+                case 'chat_message':
+                    if (data.temp_id && pendingMessages.has(data.temp_id)) {
+                        const tempMsg = document.querySelector(`[data-message-id="${data.temp_id}"]`);
+                        if (tempMsg) {
+                            tempMsg.dataset.messageId = data.id;
+                            tempMsg.classList.remove('pending');
+                            tempMsg.classList.add('sent');
+                            pendingMessages.delete(data.temp_id);
+                        }
+                    } else {
+                        addMessageToChat(
+                            data.sender,
+                            data.message,
+                            data.timestamp,
+                            data.id,
+                            false,
+                            data.author_id
+                        );
+                    }
+                    break;
+
+                case 'message_edited':
+                    const messageDiv = document.querySelector(`[data-message-id="${data.message_id}"]`);
+                    if (messageDiv) {
+                        messageDiv.querySelector('.message-content').textContent = data.new_content;
+                        const timestampSpan = messageDiv.querySelector('.timestamp');
+                        if (timestampSpan && data.updated_at) {
+                            timestampSpan.textContent = formatTimestamp(data.updated_at) + ' (edited)';
+                        }
+                    }
+                    break;
+
+                case 'error':
+                    showSystemMessage(data.message, true);
+                    break;
+
+                case 'connection_success':
+                    console.log("Server connection confirmed");
+                    break;
+
+                default:
+                    console.warn('Unknown message type:', data.type);
+            }
+        }
+
+        function addMessageToChat(sender, message, timestamp, messageId, isPending = false, authorId = null) {
+            const messagesDiv = document.getElementById('messages');
+            const existingMessage = document.querySelector(`[data-message-id="${messageId}"]`);
+
+            if (existingMessage) {
+                existingMessage.querySelector('.message-content').textContent = message;
+                existingMessage.classList.remove('pending');
+                return;
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isPending ? 'pending' : ''}`;
+            messageDiv.dataset.messageId = messageId;
+
+            const messageHeader = document.createElement('div');
+            messageHeader.className = 'message-header';
+
+            const senderSpan = document.createElement('span');
+            senderSpan.className = 'sender';
+            senderSpan.textContent = sender;
+
+            const timestampSpan = document.createElement('span');
+            timestampSpan.className = 'timestamp';
+            timestampSpan.textContent = formatTimestamp(timestamp);
+
+            messageHeader.appendChild(senderSpan);
+            messageHeader.appendChild(timestampSpan);
+
+            // Only add edit button for current user's messages
+            const currentUserId = document.getElementById('receiver-data')?.dataset.sender_id;
+            if (authorId && currentUserId && authorId.toString() === currentUserId.toString()) {
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.title = 'Edit message';
+                editBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                         stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                `;
+                messageHeader.appendChild(editBtn);
+            }
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = message;
+
+            messageDiv.appendChild(messageHeader);
+            messageDiv.appendChild(contentDiv);
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const content = messageInput.value.trim();
+
+            if (!content) return;
+
+            if (chatSocket.readyState !== WebSocket.OPEN) {
+                showSystemMessage("Not connected. Please wait...", true);
+                return;
+            }
+
+            if (currentlyEditingId) {
+                // Edit existing message
+                updateMessage(currentlyEditingId, content);
+                currentlyEditingId = null;
+                sendButton.textContent = 'Send';
+            } else {
+                // Send new message
+                const tempId = 'temp-' + Date.now();
+                addMessageToChat("You", content, new Date().toISOString(), tempId, true);
+                pendingMessages.add(tempId);
+
+                try {
+                    chatSocket.send(JSON.stringify({
+                        'type': 'chat_message',
+                        'message': content,
+                        'temp_id': tempId,
+                        'author_id': document.getElementById('receiver-data').dataset.sender_id
+                    }));
+                } catch (error) {
+                    console.error("Error sending message:", error);
+                    showSystemMessage("Failed to send message", true);
+                    document.querySelector(`[data-message-id="${tempId}"]`)?.classList.add('failed');
+                    pendingMessages.delete(tempId);
+                }
+            }
+
+            messageInput.value = '';
+        }
+
+        function updateMessage(messageId, newContent) {
+            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (!messageDiv) {
+                showSystemMessage("Message not found", true);
+                return;
+            }
+
+            // Update UI immediately
+            messageDiv.querySelector('.message-content').textContent = newContent;
+
+            // Send edit to server
+            try {
+                if (chatSocket.readyState === WebSocket.OPEN) {
+                    chatSocket.send(JSON.stringify({
+                        'type': 'edit_message',
+                        'message_id': messageId,
+                        'new_content': newContent,
+                        'author_id': document.getElementById('receiver-data').dataset.sender_id
+                    }));
+                } else {
+                    showSystemMessage("Connection lost. Reconnecting...", true);
+                    connectWebSocket();
+                }
+            } catch (error) {
+                console.error("Error updating message:", error);
+                showSystemMessage("Failed to update message", true);
+            }
+        }
+
+        // Initialize chat
         document.addEventListener('DOMContentLoaded', () => {
-            // Add receiver ID to HTML
-            const receiverData = document.createElement('div');
-            receiverData.id = 'receiver-data';
-            receiverData.dataset.id = "{{ receiver.id|default:'' }}";
-            receiverData.style.display = 'none';
-            document.body.appendChild(receiverData);
+            // Add user data element
+            const userData = document.createElement('div');
+            userData.id = 'receiver-data';
+            userData.dataset.id = "{{ receiver.id|default:'' }}";
+            userData.dataset.sender_id = "{{ request.user.id|default:'' }}";
+            userData.style.display = 'none';
+            document.body.appendChild(userData);
 
-            // Set up send button
-            document.getElementById('send-button').addEventListener('click', sendMessage);
+            // Initial connection
+            connectWebSocket();
 
-            // Allow Enter key to send
-            document.getElementById('message-input').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    sendMessage();
+            // Clean up on page unload
+            window.addEventListener('beforeunload', () => {
+                if (chatSocket) {
+                    chatSocket.close();
+                }
+                if (reconnectTimeout) {
+                    clearTimeout(reconnectTimeout);
                 }
             });
-
-            // Connect WebSocket
-            connectWebSocket();
         });
     </script>
 
     <style>
+        .connection-status {
+            padding: 8px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .connection-status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .connection-status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        #send-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .edit-btn {
+            background: none;
+            border: none;
+            padding: 2px;
+            margin-left: 8px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            color: #666;
+            border-radius: 4px;
+        }
+        .edit-btn:hover {
+            color: #333;
+            background-color: #f0f0f0;
+        }
+        .message:hover .edit-btn {
+            opacity: 1;
+        }
+        .edit-btn svg {
+            display: block;
+        }
         .message.pending {
             opacity: 0.7;
         }
-
-        .message .status {
-            font-size: 0.8em;
-            color: #666;
-            margin-left: 10px;
-            font-style: italic;
-        }
-
         .message.failed {
             border-left: 3px solid #d32f2f;
         }
-
         .message.sent {
             border-left: 3px solid #4CAF50;
         }
@@ -184,7 +460,6 @@
             padding: 20px;
             font-family: Arial, sans-serif;
         }
-
         .chat-messages {
             height: 500px;
             overflow-y: auto;
@@ -194,19 +469,16 @@
             background: #f9f9f9;
             border-radius: 5px;
         }
-
         .chat-form {
             display: flex;
             gap: 10px;
         }
-
         #message-input {
             flex-grow: 1;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
         }
-
         .chat-form button {
             padding: 10px 20px;
             background: #4CAF50;
@@ -215,7 +487,6 @@
             border-radius: 4px;
             cursor: pointer;
         }
-
         .message {
             margin-bottom: 15px;
             padding: 10px;
@@ -223,49 +494,28 @@
             border-radius: 4px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
-
         .message-header {
             display: flex;
             justify-content: space-between;
             margin-bottom: 5px;
             font-size: 0.9em;
         }
-
         .sender {
             font-weight: bold;
             color: #333;
         }
-
         .timestamp {
             color: #999;
         }
-
         .system-message {
             text-align: center;
             color: #666;
             margin: 10px 0;
             font-style: italic;
         }
-
         .system-message.error {
             color: #d32f2f;
         }
-
-        #send-button:disabled {
-        background-color: #cccccc;
-        cursor: not-allowed;
-    }
-    .connection-status {
-        margin-bottom: 10px;
-        padding: 5px;
-        text-align: center;
-    }
-    .connected {
-        background-color: #dff0d8;
-    }
-    .disconnected {
-        background-color: #f2dede;
-    }
     </style>
 </body>
 {% endblock %}

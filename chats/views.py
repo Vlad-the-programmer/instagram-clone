@@ -138,38 +138,6 @@ class ChatDeleteView(common_mixins.LoginRequiredMixin,
     
     
 # class MessageCreateView(common_mixins.LoginRequiredMixin,
-#                         mixins.ChatAccessPermissionRequiredMixin,
-#                         edit.CreateView):
-#     template_name = 'chats/chat-detail.html'
-#     model = Message
-#     context_object_name = 'message'
-#     form_class = MessageCreateUpdateForm
-#     slug_field = 'chat_slug'
-#
-#     def post(self, request, *args, **kwargs):
-#         messages.success(request, 'Created!')
-#         return super().post(request, *args, **kwargs)
-#
-#
-#     def form_valid(self, form):
-#         chat_slug = self.kwargs.get('chat_slug', '')
-#         author = self.request.user
-#         chat = self.get_object(*args, **kwargs)
-#
-#         message = form.save(commit=False)
-#         message.author = author
-#         message.chat = chat
-#         message.sent_for = chat.chat_to_user
-#         message.save()
-#         return redirect(chat.get_absolute_url())
-#
-#     # def get_success_url(self, *args, **kwargs):
-#     #     print(kwargs)
-#     #     context = self.get_context_data(**kwargs)
-#     #     message = context['message']
-#     #     return message.chat.get_absolute_url()
-#
-#
 
 class MessageUpdateView(common_mixins.LoginRequiredMixin,
                         mixins.GetMessageObjectMixin,
