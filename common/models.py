@@ -12,3 +12,8 @@ class TimeStampedUUIDModel(models.Model):
 
     class Meta:
         abstract = True
+
+    def delete(self, *args, **kwargs):
+        self.is_active = False
+        self.save()
+        return

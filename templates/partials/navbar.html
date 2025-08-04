@@ -24,7 +24,7 @@
                 </a>
               {% if user.is_authenticated %}
                 <ul class="dropdown-menu">
-                  {% if user.is_staff %}
+                  {% if user.has_add_permission %}
                   <li><a class="dropdown-item" href="{% url 'posts:post-create' %}">Add post</a></li>
                   {% endif %}
                   <li><a class="dropdown-item" href="{% url 'users:profile-detail' profile.id %}">Profile</a></li>

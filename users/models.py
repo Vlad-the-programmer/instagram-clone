@@ -48,7 +48,7 @@ class Profile(AbstractUser):
     gender = models.CharField(
                                 verbose_name=_('Gender'),
                                 max_length=10,
-                                choices=Gender.choices,
+                                choices=Gender,
                                 default=_('Male'),
                                 null=True)
     country = CountryField(
@@ -85,42 +85,66 @@ class Profile(AbstractUser):
         
     def set_username(self):
         return self.email.split('@')[0].lower()
-    
-    def has_perm(self, perm, obj=None):
-        return self.is_superuser
-    
-    def has_add_permission(request):
-        if request.user.is_authenticated:
-            return True
-        return False
 
-    def has_change_permission(request):
-        if request.user.is_authenticated:
+    def has_perm(self, perm, obj=None):
+        # Superusers have all permissions
+        if self.is_superuser:
             return True
-        return False
-    
-    def has_delete_permission(request):
-        if request.user.is_authenticated:
-            return True
-        return False
-    
-    def has_follow_permission(request):
-        if request.user.is_authenticated:
-            return True
-        return False
-    
+
+        # Check for specific permissions
+        return super().has_perm(perm, obj)
+
+    def has_add_permission(self, obj=None):
+        """Check if user can add objects"""
+        return self.is_active  # All active users can add
+
+    def has_change_permission(self, obj=None):
+        """Check if user can change objects"""
+        if obj is None:
+            return self.is_active
+        return self.is_active and (self == obj.user or self.is_staff)
+
+    def has_delete_permission(self, obj=None):
+        """Check if user can delete objects"""
+        if obj is None:
+            return self.is_staff  # Only staff can delete in general
+        return self.is_staff or (self == obj.user)
+
+    def has_follow_permission(self, obj=None):
+        """Check if user can follow others"""
+        return self.is_active
+
+    def has_unfollow_permission(self, obj=None):
+        """Check if user can unfollow others"""
+        return self.is_active
+
     def has_module_perms(self, app_label):
+        # Superusers have access to all modules
+        if self.is_superuser:
+            return True
+
+        # Regular users have access to all modules
         return True
     
     def has_admin_perms(self):
         return self.is_superuser
-    
-    def get_user_perms(self):
-        return {    
-                    'post':   self.has_add_permission(),
-                    'change': self.has_change_permission(),
-                    'delete': self.has_delete_permission(),
-                    'follow': self.has_follow_permission(),
+
+    def get_user_perms(self) -> dict[str, bool]:
+        return {
+                    'add_post':   self.has_add_permission(),
+                    'change_post': self.has_change_permission(),
+                    'delete_post': self.has_delete_permission(),
+                    'follow_user': self.has_follow_permission(),
+                    'unfollow_user': self.has_follow_permission(),
+                    'change_profile': self.has_change_permission(),
+                    'delete_profile': self.has_delete_permission(),
+                    'add_comment': self.has_add_permission(),
+                    'change_comment': self.has_change_permission(),
+                    'delete_comment': self.has_delete_permission(),
+                    'add_like': self.has_add_permission(),
+                    'delete_like': self.has_delete_permission(),
+                    'add_dislike': self.has_add_permission(),
+                    'delete_dislike': self.has_delete_permission(),
                     'admin':  self.has_admin_perms(),
                     'chat':   self.has_add_permission()
                 }
@@ -180,7 +204,7 @@ class Profile(AbstractUser):
         return self.following_users_list.filter(
                 following_user__username=username
             ).first()
-        
+
     class Meta:
        verbose_name = _('User')
        verbose_name_plural = _('Users')

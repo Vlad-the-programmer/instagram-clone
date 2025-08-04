@@ -145,8 +145,7 @@ class PostUpdateView(   LoginRequiredMixin,
     template_name = 'posts/post_create.html'
     form_class = UpdateForm
     
-    
-    def post(self, request, slug, *args, **kwargs):
+    def post(self, request, *args, **kwargs):
         user = request.user
         post = self.get_object()
         
