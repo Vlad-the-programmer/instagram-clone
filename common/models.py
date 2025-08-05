@@ -16,4 +16,3 @@ class TimeStampedUUIDModel(models.Model):
     def delete(self, *args, **kwargs):
         self.is_active = False
         self.save()
-        return

@@ -10,6 +10,7 @@ from django.views.generic import list, detail, edit
 
 from comments.forms import CommentCreateForm
 from comments.utils import paginateComments
+from users.permissions import PermissionEnum
 from .models import Post, Tags
 from likes.models import Like, Dislike
 from .forms import UpdateForm, CreateForm
@@ -59,7 +60,9 @@ class PostsListView(list.ListView):
         return context
     
     
-@method_decorator(permission_required("post.add", raise_exception=True), name='dispatch')
+@method_decorator(permission_required(PermissionEnum.ADD_POST,
+                                      raise_exception=True),
+                  name='dispatch')
 class CreatePostView(LoginRequiredMixin, 
                      common_mixins.LoginRequiredMixin,
                      edit.CreateView
@@ -136,7 +139,9 @@ class PostDetailView(   mixins.GetPostObjectMixin,
             return context
         
  
-@method_decorator(permission_required("post.update", raise_exception=True), name='dispatch')       
+@method_decorator(permission_required(PermissionEnum.EDIT_POST,
+                                      raise_exception=True),
+                  name='dispatch')
 class PostUpdateView(   LoginRequiredMixin,  
                         mixins.GetPostObjectMixin, 
                         common_mixins.LoginRequiredMixin,
@@ -188,7 +193,9 @@ class PostUpdateView(   LoginRequiredMixin,
         return context
         
 
-@method_decorator(permission_required("post.delete", raise_exception=True), name='dispatch')
+@method_decorator(permission_required(PermissionEnum.DELETE_POST,
+                                      raise_exception=True),
+                  name='dispatch')
 class PostDeleteView(LoginRequiredMixin,   
                         mixins.GetPostObjectMixin,
                         common_mixins.LoginRequiredMixin,

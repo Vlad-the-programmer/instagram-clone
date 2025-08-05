@@ -8,6 +8,9 @@ from django_countries.fields import CountryField
 import uuid
 
 from .managers import UserManager
+from .permissions import (PermissionEnum,
+                          PermissionDescriptionEnum,
+                          CustomPermissionEnum)
 
 
 class Gender(models.TextChoices):
@@ -126,27 +129,23 @@ class Profile(AbstractUser):
         # Regular users have access to all modules
         return True
     
-    def has_admin_perms(self):
-        return self.is_superuser
-
     def get_user_perms(self) -> dict[str, bool]:
         return {
-                    'add_post':   self.has_add_permission(),
-                    'change_post': self.has_change_permission(),
-                    'delete_post': self.has_delete_permission(),
-                    'follow_user': self.has_follow_permission(),
-                    'unfollow_user': self.has_follow_permission(),
-                    'change_profile': self.has_change_permission(),
-                    'delete_profile': self.has_delete_permission(),
-                    'add_comment': self.has_add_permission(),
-                    'change_comment': self.has_change_permission(),
-                    'delete_comment': self.has_delete_permission(),
-                    'add_like': self.has_add_permission(),
-                    'delete_like': self.has_delete_permission(),
-                    'add_dislike': self.has_add_permission(),
-                    'delete_dislike': self.has_delete_permission(),
-                    'admin':  self.has_admin_perms(),
-                    'chat':   self.has_add_permission()
+                    PermissionEnum.ADD_POST:   self.has_add_permission(),
+                    PermissionEnum.EDIT_POST: self.has_change_permission(),
+                    PermissionEnum.DELETE_POST: self.has_delete_permission(),
+                    PermissionEnum.FOLLOW_USER: self.has_follow_permission(),
+                    PermissionEnum.UNFOLLOW_USER: self.has_follow_permission(),
+                    PermissionEnum.CHANGE_PROFILE: self.has_change_permission(),
+                    PermissionEnum.DELETE_PROFILE: self.has_delete_permission(),
+                    PermissionEnum.ADD_COMMENT: self.has_add_permission(),
+                    PermissionEnum.CHANGE_COMMENT: self.has_change_permission(),
+                    PermissionEnum.DELETE_COMMENT: self.has_delete_permission(),
+                    PermissionEnum.ADD_LIKE: self.has_add_permission(),
+                    PermissionEnum.DELETE_LIKE: self.has_delete_permission(),
+                    PermissionEnum.ADD_DISLIKE: self.has_add_permission(),
+                    PermissionEnum.DELETE_DISLIKE: self.has_delete_permission(),
+                    CustomPermissionEnum.CHAT:   self.has_add_permission()
                 }
         
     @classmethod
@@ -211,4 +210,4 @@ class Profile(AbstractUser):
        ordering = ['email']
        indexes = [
             models.Index(fields=['username', 'email', ])
-        ]
+       ]
