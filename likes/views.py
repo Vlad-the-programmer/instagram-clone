@@ -7,6 +7,7 @@ from django.contrib import messages
 # Generic class-based views
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import edit
+from rest_framework.reverse import reverse_lazy
 
 from .models import Like, Dislike
 from posts.models import Post
@@ -36,7 +37,7 @@ class LikeCreateView(LoginRequiredMixin,
         print("Post liked", post)
         
         if post is None:
-            return Http404("Post not found")
+            return reverse_lazy("exceptions:404_not_found")
         
         like, created = Like.objects.get_or_create( 
                                                     post=post, 
@@ -62,7 +63,6 @@ class LikeCreateView(LoginRequiredMixin,
             logger.info(f"Like created by {like.author.username} \
                                 for post {like.post.title}"
                         )
-            return redirect(self.get_success_url())
         return redirect(self.get_success_url())
         
     
@@ -97,7 +97,7 @@ class DislikeCreateView(LoginRequiredMixin,
         print("Post disliked", post)
         
         if post is None:
-            return Http404("Post not found")
+            return reverse_lazy("exceptions:404_not_found")
         
         dislike, created = Dislike.objects.get_or_create(  
                                                       post=post,

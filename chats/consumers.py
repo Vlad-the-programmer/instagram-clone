@@ -1,14 +1,17 @@
 import json
-from urllib.parse import parse_qs
+import logging
+
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.middleware.csrf import CsrfViewMiddleware
 
-from .models import Chat, Message
+from .models import Chat, Message, STATUS
 from channels.db import database_sync_to_async
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -18,52 +21,95 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.room_name = self.scope['url_route']['kwargs']['room_name']
             self.receiver_id = self.scope['url_route']['kwargs']['receiver_id']
 
+            # Get user from scope
+            self.user = self.scope["user"]
+
+            logger.info(
+                f"WebSocket connection attempt - User: {self.user}, Room: {self.room_name}, Receiver: {self.receiver_id}")
+
             # Verify authentication
-            if isinstance(self.scope["user"], AnonymousUser):
-                await self.close(code=4001)
+            if isinstance(self.user, AnonymousUser):
+                logger.warning("WebSocket connection rejected: User not authenticated")
+                await self.close(code=4001)  # Unauthorized
                 return
 
-            # Verify CSRF token from query string
-            token = self.scope["query_string"].decode().split('token=')[1]
-            if not await self.verify_csrf_token(token):
-                await self.close(code=4003)
+            # Get token from query parameters
+            query_string = self.scope.get('query_string', b'').decode('utf-8')
+            query_params = dict(
+                pair.split('=') for pair in query_string.split('&') if '=' in pair
+            )
+            token = query_params.get('token', '')
+
+            # Verify CSRF token
+            if not token or not await self.verify_csrf_token(token):
+                logger.warning("WebSocket connection rejected: Invalid CSRF token")
+                await self.close(code=4003)  # Forbidden
                 return
 
-            # Accept connection first
+            # Get receiver
+            self.receiver = await self.get_receiver()
+            if not self.receiver:
+                logger.warning(f"Receiver not found: {self.receiver_id}")
+                await self.close(code=4004)  # Not found
+                return
+
+            # Get room
+            self.room = await self.get_room()
+            if not self.room:
+                logger.warning(f"Room not found: {self.room_name}")
+                await self.close(code=4004)  # Not found
+                return
+
+            # Accept connection
             await self.accept()
 
-            # Complete handshake
-            self.room_group_name = f'chat_{self.room_name}_{self.receiver_id}'
+            # Set up room group
+            self.room_group_name = f'chat_{self.room_name}'
             await self.channel_layer.group_add(
                 self.room_group_name,
                 self.channel_name
             )
 
-            await self.send(json.dumps({
+            logger.info(f"WebSocket connection established - User: {self.user}, Room: {self.room_name}")
+
+            # Send handshake confirmation
+            await self.send(text_data=json.dumps({
                 'type': 'handshake_complete',
                 'status': 'success',
-                'user_id': str(self.scope["user"].id)
+                'user_id': str(self.user.id),
+                'room_name': self.room_name
             }))
 
         except Exception as e:
-            await self.send(json.dumps({
-                'type': 'handshake_failed',
-                'error': str(e)
-            }))
-            await self.close(code=4002)
+            logger.error(f"WebSocket connection error: {str(e)}", exc_info=True)
+            try:
+                await self.send(text_data=json.dumps({
+                    'type': 'handshake_failed',
+                    'error': str(e)
+                }))
+            except:
+                pass
+            await self.close(code=4000)  # Bad request
 
     @database_sync_to_async
     def verify_csrf_token(self, token):
-        middleware = CsrfViewMiddleware()
-        request = type('Request', (), {
-            'COOKIES': {settings.CSRF_COOKIE_NAME: token},
-            'method': 'POST',
-            'META': {}
-        })
+        """Verify CSRF token with better error handling"""
         try:
+            from django.middleware.csrf import CsrfViewMiddleware
+            from django.http import HttpRequest
+
+            request = HttpRequest()
+            request.method = 'POST'
+            request.META = {
+                'HTTP_X_CSRFTOKEN': token,
+                'CSRF_COOKIE': token,
+            }
+
+            middleware = CsrfViewMiddleware(lambda x: None)
             middleware.process_request(request)
             return True
-        except:
+        except Exception as e:
+            logger.error(f"CSRF verification failed: {str(e)}")
             return False
 
     @database_sync_to_async
@@ -71,13 +117,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         messages = Message.active_messages.filter(
             chat=room,
             id__gt=last_message_id
-        ).order_by('created_at')
+        ).order_by('date_created')
         return [
             {
                 'author__username': msg.author.username,
-                'author_id': msg.author.id,  # Add author ID
+                'author_id': msg.author.id,
                 'message': msg.message,
-                'created_at': msg.created_at.isoformat(),
+                'date_created': msg.date_created.isoformat(),
                 'id': msg.pkid
             }
             for msg in messages
@@ -85,17 +131,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_receiver(self):
+        """Get receiver user object"""
         try:
             return get_user_model().objects.get(id=self.receiver_id)
-        except (get_user_model().DoesNotExist, ValueError):
+        except (get_user_model().DoesNotExist, ValueError) as e:
+            logger.error(f"Receiver not found: {self.receiver_id} - {str(e)}")
             return None
 
     @database_sync_to_async
     def get_room(self):
-        room = Chat.active_chats.get(
-            slug=self.room_name
-        )
-        return room
+        """Get chat room with better error handling"""
+        try:
+            return Chat.active_chats.get(slug=self.room_name)
+        except Chat.DoesNotExist:
+            logger.error(f"Chat room not found: {self.room_name}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting chat room {self.room_name}: {str(e)}")
+            return None
 
     @database_sync_to_async
     def save_message(self, room, content):
@@ -104,6 +157,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             author=self.user,
             sent_for=self.receiver,
             message=content,
+            status=STATUS.SENT
         )
 
     @database_sync_to_async
@@ -118,14 +172,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             # Update message
             message.message = new_content
-            message.updated_at = timezone.now()
+            message.status = STATUS.EDITED
+            message.date_updated = timezone.now()
             message.save()
 
             # Return the updated message
             return {
                 'id': message.pkid,
                 'message': message.message,
-                'updated_at': message.updated_at,
+                'date_updated': message.date_updated,
                 'author_id': message.author.id
             }
 
@@ -133,6 +188,30 @@ class ChatConsumer(AsyncWebsocketConsumer):
             raise ValueError("Message not found")
         except Exception as e:
             print(f"Error updating message: {str(e)}")
+            raise
+
+    @database_sync_to_async
+    def delete_message(self, message_id):
+        try:
+            # Use default manager instead of active_messages to ensure we can find the message
+            message = Message.objects.get(pkid=message_id)
+
+            if not message:
+                logger.error("Message not found")
+                raise ValueError("Message not found")
+            
+            # Verify ownership
+            if message.author.id != self.user.id:
+                raise PermissionError("You can only delete your own messages")
+
+            # Delete message
+            message.status = STATUS.DELETED
+            message.delete() # Soft delete
+
+        except Message.DoesNotExist:
+            logger.error("Message not found")
+        except Exception as e:
+            logger.error(f"Error deleting message: {str(e)}")
             raise
 
     async def disconnect(self, close_code):
@@ -173,7 +252,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             'message_id': update_result['id'],
                             'new_content': update_result['message'],
                             'sender': self.user.username,
-                            'updated_at': update_result['updated_at'].isoformat(),
+                            'date_updated': update_result['date_updated'].isoformat(),
                             'author_id': update_result['author_id']
                         }
                     )
@@ -223,5 +302,5 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'message_id': event['message_id'],
             'new_content': event['new_content'],
             'sender': event['sender'],
-            'updated_at': event['updated_at']
+            'date_updated': event['date_updated']
         }))

@@ -13,7 +13,10 @@ from common.models import TimeStampedUUIDModel
 class STATUS(models.TextChoices):
     SENT = "sent", _("Sent")
     UNSENT = "unsent", _("Unsent")
-    
+    READ = "read", _("Read")
+    UNREAD = "unread", _("Unread")
+    EDITED = "edited", _("Edited")
+    DELETED = "deleted", _("Deleted")
     
 class Chat(TimeStampedUUIDModel):
     active_chats = ActiveChatsManager()

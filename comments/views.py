@@ -1,133 +1,162 @@
-from django.shortcuts import redirect, render, get_object_or_404
+from typing import Any, Dict, Optional
+from django.db import transaction, models
+from django.db.models import QuerySet
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.shortcuts import redirect, get_object_or_404
 from django.urls import reverse, reverse_lazy
 from django.contrib import messages
-from django.views.generic import edit
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import CreateView, UpdateView, DeleteView
 
-from .models import Comment
 from posts.models import Post
+from .models import Comment
 from .forms import CommentCreateForm, CommentUpdateForm
-from . import mixins
-from common import mixins as common_mixins
+from .mixins import GetCommentObjectMixin, CommentPermissionMixin
 from .utils import get_comments
+from users.permissions import PermissionEnum
 
 
-class CommentCreateView(LoginRequiredMixin,
-                        common_mixins.LoginRequiredMixin,
-                        edit.CreateView):
+class CommentCreateView(LoginRequiredMixin, CommentPermissionMixin, CreateView):
+    """
+    View for creating a new comment on a post.
+    """
     model = Comment
     template_name = 'posts/post-detail.html'
     form_class = CommentCreateForm
+    view_permission_required = PermissionEnum.ADD_COMMENT
     
-    
-    def post(self, request, *args, **kwargs):
-        self.request = request
-        
-        post_data = request.POST.copy()
-        post_id = post_data.pop('post_id')[0]
-        
-        post = get_object_or_404(Post.published, id=post_id)
-        form = CommentCreateForm(data=post_data, files=request.FILES)
-        print(form.errors)
-        if form.is_valid():
-            comment = form.save(commit=False)
-            comment.author = request.user
-            comment.post = post
-   
-            comment.save()
-            print(comment)
+    @transaction.atomic
+    def post(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """
+        Handle POST request to create a new comment.
+        """
+        try:
+            post_id = request.POST.get('post_id')
+            if not post_id:
+                messages.error(request, 'Post ID is required.')
+                return redirect('posts:posts-list')
+                
+            post = get_object_or_404(Post.published, id=post_id)
+            form = self.form_class(data=request.POST, files=request.FILES)
             
-            messages.success(request, 'Comment added!')
-            return redirect(comment.get_absolute_url())
- 
-        return redirect(post.get_absolute_url())
-    
-    
-    def form_invalid(self, form):
-        messages.error(self.request, 'Invalid data!')
-        return redirect(reverse_lazy('comments:comment-create'))
-    
-    
-    def get_context_data(self, **kwargs):
-       context = super().get_context_data(**kwargs)
-       comment = self.get_object()
-       
-       context['comment_form'] = self.form_class
-       context['post'] = comment.post
-       context['comments'] = get_comments(comment.post)
-       
-       return context
-   
-   
-class CommentUpdateView(    
-                            LoginRequiredMixin, 
-                            mixins.GetCommentObjectMixin,
-                            edit.UpdateView
-                        ):
-    template_name = 'comments/comment_update.html'
-    form_class = CommentUpdateForm
-    
-    
-    def post(self, request, *args, **kwargs):
-        comment = self.get_object()
-        form = CommentUpdateForm(   
-                                    instance=comment, 
-                                    data=request.POST, 
-                                    files=request.FILES
-                                )
-        if form.is_valid() and comment is not None:
-            form.save()
+            if form.is_valid():
+                comment = form.save(commit=False)
+                comment.author = request.user
+                comment.post = post
+                comment.save()
+                
+                messages.success(request, 'Your comment has been added!')
+                return redirect(comment.get_absolute_url())
+                
+            # If form is invalid, show errors
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"{field.title()}: {error}")
+                    
+            return redirect(post.get_absolute_url())
             
-            messages.success(request, 'Updated!')
-            return redirect(comment.get_absolute_url())
-        
-        return redirect(reverse('comments:comment-update', kwargs={
-                                                            'slug': comment.slug
-                                                        }
-                                )
-                        )
+        except Exception as e:
+            messages.error(request, 'An error occurred while adding your comment.')
+            return redirect('posts:posts-list')
     
-    
-    def form_invalid(self, form):
-        comment = self.get_object()
-        messages.error(self.request, 'Invalid data!')
-        return redirect(reverse('comments:comment-update', kwargs={
-                                                           'slug': comment.slug
-                                                        }
-                                )
-                        )
-    
-    
-    def get_context_data(self, **kwargs):
-       context = super().get_context_data(**kwargs)
-       comment = self.get_object()
-       print(comment)
-       context['update_form'] = self.form_class(instance=comment)
-       context['post'] = comment.post
-       context['comments'] = get_comments(comment.post)
-       return context
+    def form_invalid(self, form) -> HttpResponse:
+        """Handle invalid form submission."""
+        messages.error(
+            self.request,
+            'Please correct the errors below.'
+        )
+        return self.render_to_response(self.get_context_data(form=form))
    
 
-class CommentDeleteView(    
-                            LoginRequiredMixin, 
-                            mixins.GetCommentObjectMixin,
-                            common_mixins.LoginRequiredMixin,
-                            edit.DeleteView
-                        ):
-    template_name = 'comments/comment_delete.html'
-        
-        
-    def post(self, request, *args, **kwargs):
+class CommentUpdateView(LoginRequiredMixin, CommentPermissionMixin, GetCommentObjectMixin, UpdateView):
+    """
+    View for updating an existing comment.
+    """
+    model = Comment
+    template_name = 'comments/comment_update.html'
+    form_class = CommentUpdateForm
+    slug_url_kwarg = 'slug'
+    view_permission_required = PermissionEnum.CHANGE_COMMENT
+    
+    def get_queryset(self) -> QuerySet:
+        """Limit queryset to comments owned by the current user."""
+        return super().get_queryset().filter(author=self.request.user)
+    
+    @transaction.atomic
+    def post(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """
+        Handle POST request to update a comment.
+        """
         comment = self.get_object()
-        
-        if comment is not None:
-            comment.delete()
+        if comment is None:
+            messages.error(request, 'Comment not found.')
+            return redirect('posts:posts-list')
             
-            messages.success(request, 'Deleted!')
+        form = self.form_class(
+            instance=comment,
+            data=request.POST,
+            files=request.FILES
+        )
+        
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your comment has been updated!')
             return redirect(comment.get_absolute_url())
-        
-        return redirect('comments:comment-delete', kwargs={
-                                                        'slug': comment.slug
-                                                        }
-                        )
             
+        return self.form_invalid(form)
+    
+    def form_invalid(self, form) -> HttpResponse:
+        """Handle invalid form submission."""
+        messages.error(
+            self.request,
+            'Please correct the errors below.'
+        )
+        return self.render_to_response(self.get_context_data(form=form))
+    
+    def get_context_data(self, **kwargs) -> Dict[str, Any]:
+        """Add comment and related data to the template context."""
+        context = super().get_context_data(**kwargs)
+        context['update_form'] = self.form_class(instance=self.object)
+        context['post'] = self.object.post
+        context['comments'] = get_comments(self.object.post)
+        return context
+
+
+class CommentDeleteView(LoginRequiredMixin, CommentPermissionMixin, GetCommentObjectMixin, DeleteView):
+    """
+    View for deleting a comment.
+    """
+    model = Comment
+    template_name = 'comments/comment_delete.html'
+    slug_url_kwarg = 'slug'
+    view_permission_required = PermissionEnum.DELETE_COMMENT
+    
+    def get_queryset(self) -> QuerySet:
+        """Limit queryset to comments owned by the current user or posts owned by the user."""
+        return super().get_queryset().filter(
+            models.Q(author=self.request.user) | 
+            models.Q(post__author=self.request.user)
+        )
+    
+    @transaction.atomic
+    def post(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """
+        Handle POST request to delete a comment.
+        """
+        comment = self.get_object()
+        if comment is None:
+            messages.error(request, 'Comment not found.')
+            return redirect('posts:posts-list')
+            
+        post_url = comment.get_absolute_url()
+        try:
+            comment.delete()
+            messages.success(request, 'Your comment has been deleted.')
+        except Exception as e:
+            messages.error(request, 'An error occurred while deleting the comment.')
+            
+        return redirect(post_url)
+    
+    def get_success_url(self) -> str:
+        """Return the URL to redirect to after successful deletion."""
+        return self.object.get_absolute_url()

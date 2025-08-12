@@ -79,7 +79,7 @@ class MessageAccessPermissionRequiredMixin(BaseChatMessageMixin):
             logger.error(f'Message does n')
 
             messages.error(request, 'Message does not exist!')
-            return redirect(reverse('chats:user-chats', kwargs={'chat_slug': _chat_slug}))
+            return redirect(reverse('chats:chat-detail', kwargs={'chat_slug': _chat_slug}))
 
 
         if not self.can_access_chat(request, message.chat):

@@ -3,7 +3,7 @@ from posts.models import Post
 from .models import Comment
 
 
-def paginateComments(request, comments, results):
+def paginate_comments(request, comments, results):
 
     page = request.GET.get('page')
     paginator = Paginator(comments, results)

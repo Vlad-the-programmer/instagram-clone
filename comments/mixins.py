@@ -1,3 +1,5 @@
+from django.contrib.auth.decorators import permission_required
+
 from .models import Comment
 
 
@@ -12,3 +14,16 @@ class GetCommentObjectMixin():
             comment = None
 
         return comment
+
+
+class CommentPermissionMixin:
+    """Mixin to handle comment-related permissions."""
+    view_permission_required = None
+
+    def dispatch(self, request, *args, **kwargs):
+        if self.view_permission_required:
+            return permission_required(
+                self.view_permission_required,
+                raise_exception=True
+            )(super().dispatch)(request, *args, **kwargs)
+        return super().dispatch(request, *args, **kwargs)

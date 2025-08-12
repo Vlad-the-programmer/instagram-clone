@@ -47,7 +47,7 @@ class Comment(TimeStampedUUIDModel):
                             )
     post = models.ForeignKey(   
                                 'posts.Post',
-                                related_name='comment',
+                                related_name='comments',
                                 on_delete=models.CASCADE
                             )
     title = models.CharField(   

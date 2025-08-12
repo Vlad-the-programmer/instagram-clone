@@ -1,3 +1,6 @@
+from django.contrib.auth.models import AbstractUser
+from django.http.request import HttpRequest
+from django.http.response import HttpResponsePermanentRedirect
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 # Verification email
@@ -10,9 +13,17 @@ from django.core.mail import EmailMessage
 from django.contrib import messages
 
 
-def send_verification_email(request, user, template_email,
-                            mail_subject=None, is_activation_email=False):
-    
+def send_verification_email(request: HttpRequest, user: AbstractUser, template_email,
+                            mail_subject=None, is_activation_email=False) -> HttpResponsePermanentRedirect:
+    """
+        Send verification/activation email with token
+        Params:
+            request: HttpRequest
+            user: AbstractUser recipient
+            template_email: str template_file name for email
+            mail_subject: str
+    """
+
     uuid = urlsafe_base64_encode(force_bytes(user.id))
     token = default_token_generator.make_token(user)
     current_site = get_current_site(request)

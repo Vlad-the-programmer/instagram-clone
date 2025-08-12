@@ -66,17 +66,35 @@
             }
             clearTimeout(reconnectTimeout);
 
+            // Make sure room_name is URL-encoded and receiver_id is a number
             const roomName = encodeURIComponent(document.getElementById('room-name').textContent.trim());
-            const receiverId = document.getElementById('receiver-data')?.dataset.id;
-            const currentUserId = document.getElementById('receiver-data')?.dataset.sender_id;
+            const receiverElement = document.getElementById('receiver-data');
+
+            // Debug log the element and its dataset
+            console.log('Receiver element:', receiverElement);
+            console.log('Dataset:', receiverElement?.dataset);
+
+            const receiverId = receiverElement?.dataset.id;
+            const currentUserId = receiverElement?.dataset.sender_id;
+
+            // Debug log the parsed values
+            console.log('Parsed receiverId:', receiverId);
+            console.log('Parsed currentUserId:', currentUserId);
 
             if (!receiverId || !currentUserId) {
-                showSystemMessage("Error: Missing user information", true);
+                console.error('Invalid user information:', {
+                    receiverId,
+                    currentUserId,
+                    elementExists: !!receiverElement,
+                    dataset: receiverElement?.dataset
+                });
+                showSystemMessage("Error: Invalid user information", true);
                 return;
             }
 
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const wsUrl = `${protocol}${window.location.host}/ws/chat/${roomName}/${receiverId}/?token=${getAuthToken()}`;
+            const token = getAuthToken();
+            const wsUrl = `${protocol}${window.location.host}/ws/chat/${roomName}/${receiverId}/${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 
             console.log("Attempting WebSocket connection to:", wsUrl);
             updateConnectionStatus("Connecting...", "connecting");
@@ -109,7 +127,12 @@
             };
 
             chatSocket.onclose = function(e) {
-                console.log("WebSocket connection closed", e);
+                 clearTimeout(handshakeTimeout);
+                console.log("WebSocket connection closed", {
+                    code: event.code,
+                    reason: event.reason,
+                    wasClean: event.wasClean
+                });
                 updateConnectionStatus("Disconnected - Trying to reconnect...", "disconnected");
                 document.getElementById('send-button').disabled = true;
 
@@ -123,9 +146,14 @@
                 }
             };
 
-            chatSocket.onerror = function(error) {
+             chatSocket.onerror = function(error) {
+                clearTimeout(handshakeTimeout);
                 console.error("WebSocket error:", error);
                 updateConnectionStatus("Connection error", "error");
+                // Log additional WebSocket state information
+                console.log("WebSocket readyState:", chatSocket.readyState);
+                console.log("WebSocket url:", chatSocket.url);
+                console.log("WebSocket protocol:", chatSocket.protocol);
             };
         }
 

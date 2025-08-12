@@ -97,7 +97,7 @@
           >
           <i onclick="handleLikeClick(this)" id="#thumb-up" class="fa fa-thumbs-up"></i>
         </a>
-        <p>{{post_likes}}</p> 
+        <p>{{like_count}}</p>
         <a
           name="dislike"
           id="dislike"
@@ -106,7 +106,7 @@
           >
           <i onclick="handleDislikeClick(this)" id="#thumb-down" class="fa fa-thumbs-down"></i>
         </a>
-        <p>{{post_dislikes}}</p>
+        <p>{{dislike_count}}</p>
         {% endif %}
       </div>
       {% comment %} </form> {% endcomment %}

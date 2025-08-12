@@ -4,7 +4,7 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .filters import PostsFilter
 
 
-def paginatePosts(request, posts, results):
+def paginate_posts(request, posts, results):
 
     page = request.GET.get('page')
     paginator = Paginator(posts, results)
@@ -33,7 +33,7 @@ def paginatePosts(request, posts, results):
     return custom_range, posts
 
 
-def searchPosts(request, queryset=None):
+def search_posts(request, queryset=None):
 
     search_query = ''
     posts = queryset
@@ -47,7 +47,7 @@ def searchPosts(request, queryset=None):
     return posts, search_query
     
 
-def postsFilter(request, queryset=None):
+def posts_filter(request, queryset=None):
     filter = None
     posts = None
     if queryset is not None:
