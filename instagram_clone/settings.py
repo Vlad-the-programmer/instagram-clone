@@ -104,8 +104,17 @@ ASGI_APPLICATION = 'instagram_clone.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
+import sys
 
-DATABASES = {
+if 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': ':memory:',
+        }
+    }
+else:
+    DATABASES = {
     'default': {
         'ENGINE': os.getenv('POSTGRES_ENGINE', ''),
         'NAME': os.getenv('POSTGRES_DB', ''),

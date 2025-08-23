@@ -16,6 +16,7 @@ class STATUS(models.TextChoices):
     
 
 class Post(TimeStampedUUIDModel):
+    objects = models.Manager()
     published = PublishedPostsManager()
     
     title = models.CharField(   

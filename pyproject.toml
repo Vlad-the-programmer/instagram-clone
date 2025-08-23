@@ -6,7 +6,7 @@ authors = [
     {name = "Vlad_the_programmer", email = "vladyslavklymchuk@gmail.com"}
 ]
 #readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "asgiref (==3.8.1)",
     "async-timeout (==4.0.3)",

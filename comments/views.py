@@ -83,7 +83,7 @@ class CommentUpdateView(LoginRequiredMixin, CommentPermissionMixin, GetCommentOb
         return super().get_queryset().filter(author=self.request.user)
     
     @transaction.atomic
-    def post(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+    def put(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
         """
         Handle POST request to update a comment.
         """

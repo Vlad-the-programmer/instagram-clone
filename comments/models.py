@@ -10,6 +10,7 @@ from .managers import ActiveCommentsManager
 
 
 class Comment(TimeStampedUUIDModel):
+    objects = models.Manager()
     active_comments = ActiveCommentsManager()
     
     content = models.TextField( 

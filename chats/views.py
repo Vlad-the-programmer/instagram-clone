@@ -224,9 +224,8 @@ class ChatDeleteView(CommonLoginRequiredMixin, GetChatObjectMixin,
                     return redirect(self.get_success_url())
                 
                 # Soft delete the chat
-                chat.is_active = False
-                chat.save(update_fields=['is_active', 'updated_at'])
-                
+                chat.delete()
+
                 logger.info(
                     "Chat %s was deleted by %s",
                     chat.chat_slug,

@@ -44,7 +44,6 @@ class PostsListView(PostPaginationMixin, ListView):
             print(context)
         return context
     
-    
 class CreatePostView(PostPermissionMixin, LoginRequiredMixin, CreateView):
     """View for creating a new post."""
     model = Post
@@ -134,18 +133,6 @@ class PostDetailView(mixins.GetPostObjectMixin, DetailView):
             'comment_form': CommentCreateForm(),
         })
         return context
-    
-    @method_decorator(permission_required(PermissionEnum.DELETE_POST, raise_exception=True))
-    def delete(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        """Handle DELETE request to delete a post."""
-        post = self.get_object()
-        if post is None:
-            messages.error(request, 'Post does not exist!')
-            return redirect('posts:posts-list')
-            
-        post.delete()
-        messages.success(request, 'Post deleted successfully!')
-        return redirect('posts:posts-list')
  
 class PostUpdateView(PostPermissionMixin, LoginRequiredMixin, UpdateView):
     """View for updating an existing post."""
@@ -208,24 +195,16 @@ class PostDeleteView(LoginRequiredMixin,
     template_name = 'posts/post_delete.html'
     success_url = reverse_lazy('posts:posts-list')
     view_permission_required = (PermissionEnum.DELETE_POST,)
-    
-    def delete(self, request, *args, **kwargs):
-        self.request = request
-        return super().delete(request, *args, **kwargs)
-        
-        
-    def form_valid(self, form):
+
+    def delete(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """Handle DELETE request to delete a post."""
         post = self.get_object()
-        if post:
-            post.delete()
-            messages.success(self.request, 'Post deleted!')
-            return redirect(self.success_url)
-        else:
-            messages.error(self.request, 'Post does not exist!')
-            
-            context={}
-            context['post'] = post
-            
-            return render(self.request, self.template_name, context)
+        if post is None:
+            messages.error(request, 'Post does not exist!')
+            return redirect('posts:posts-list')
+
+        post.delete()
+        messages.success(request, 'Post deleted successfully!')
+        return redirect('posts:posts-list')
 
 

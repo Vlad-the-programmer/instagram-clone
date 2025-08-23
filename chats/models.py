@@ -19,6 +19,7 @@ class STATUS(models.TextChoices):
     DELETED = "deleted", _("Deleted")
     
 class Chat(TimeStampedUUIDModel):
+    objects = models.Manager()
     active_chats = ActiveChatsManager()
 
     slug = models.SlugField(   
@@ -74,6 +75,7 @@ class Chat(TimeStampedUUIDModel):
     
     
 class Message(TimeStampedUUIDModel):
+    objects = models.Manager()
     active_messages = ActiveMessagesManager()
 
     message = models.TextField(

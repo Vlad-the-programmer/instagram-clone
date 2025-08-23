@@ -132,5 +132,3 @@ poetry install
 python manage.py runserver  
 
 ```
-
-Live Demo: 
