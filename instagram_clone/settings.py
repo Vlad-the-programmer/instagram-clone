@@ -186,28 +186,36 @@ AUTHENTICATION_BACKENDS = [
 from django.urls import reverse_lazy
 
 # All auth
-SITE_ID = 2
-LOGIN_URL = reverse_lazy('users:login')
+SITE_ID = 1
+
+LOGIN_URL = reverse_lazy('account_login')
 LOGOUT_REDIRECT_URL = reverse_lazy('posts:posts-list')
 LOGIN_REDIRECT_URL = reverse_lazy('posts:posts-list')
+
+# Email verification
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_CONFIRM_EMAIL_ON_GET = True
+ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
+
+# Authentication method
 ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE = True
 ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 
-# REST_FRAMEWORK = {
-#     'DEFAULT_AUTHENTICATION_CLASSES': (
-#         # 'oauth2_provider.ext.rest_framework.OAuth2Authentication',  # django-oauth-toolkit < 1.0.0
-#         'oauth2_provider.contrib.rest_framework.OAuth2Authentication',  # django-oauth-toolkit >= 1.0.0
-#         'rest_framework_social_oauth2.authentication.SocialAuthentication',
-#     )
-# }
+# Email confirmation redirects
+ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = LOGIN_REDIRECT_URL
+ACCOUNT_EMAIL_CONFIRMATION_ANONYMOUS_REDIRECT_URL = LOGIN_REDIRECT_URL
+ACCOUNT_SIGNUP_PASSWORD_ENTER_TWICE = True
 
+# Other allauth settings
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_EMAIL_SUBJECT_PREFIX = 'Instagram Clone - '
+ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE = True
 
-AUTHENTICATION_BACKENDS = (
-   'django.contrib.auth.backends.ModelBackend',
-)
+ACCOUNT_FORMS = {
+    'signup': 'users.forms.SignUpForm',
+}
 
 # SocialAccount Auth
 SOCIALACCOUNT_PROVIDERS = {
@@ -267,17 +275,49 @@ ACCOUNT_ADAPTER = "socialaccountAuth.adapters.MyLoginAccountAdapter"
 
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_EMAIL_REQUIRED = False
-   
-   
-# Email sending credentials
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', '')
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', False)
-EMAIL_HOST = os.getenv('EMAIL_HOST', '')
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-EMAIL_PORT = os.getenv('EMAIL_PORT', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', '')
 
+# Email Configuration
+# In development, print emails to console
+if DEBUG:
+    import logging
+
+    logger = logging.getLogger('django.core.mail')
+    logger.setLevel(logging.DEBUG)
+    # For development - use console backend
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
+    ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
+    ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN = 60
+
+    # Set a proper domain for email links
+    SITE_DOMAIN = '127.0.0.1:8000'
+    DEFAULT_FROM_EMAIL = 'noreply@example.com'  # Using example.com for development
+
+    try:
+        from django.contrib.sites.models import Site
+
+        site = Site.objects.get(id=1)
+        site.domain = '127.0.0.1:8000'
+        site.name = 'Local Development'
+        site.save()
+    except:
+        pass
+
+    # Print emails to console in development
+    EMAIL_FILE_PATH = None  # Don't save emails as files
+else:
+    # For production - SMTP configuration
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+    EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 2525))
+    EMAIL_USE_TLS = True
+    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.com')
+
+# Email subject prefix
+EMAIL_SUBJECT_PREFIX = 'Instgram Clone -'
 
 #Custom admin panel with django-jazzmin
 JAZZMIN_SETTINGS = {

@@ -21,7 +21,6 @@ Profile = get_user_model()
 @receiver(user_signed_up)
 def user_signed_up_(request, user, **kwargs):
     user.is_active = False
-
     user.save()
     
     email_address = EmailAddress.objects.get_for_user(user, user.email)

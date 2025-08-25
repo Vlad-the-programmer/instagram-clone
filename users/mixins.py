@@ -6,7 +6,7 @@ Profile = get_user_model()
 
 class GetProfileObjectMixin():
     def get_object(self):
-        pk_ = self.kwargs.get('pk', '')
+        pk_ = self.kwargs.get(self.pk_url_kwarg, '')
         
         try:
             profile = Profile.objects.get(id=pk_)

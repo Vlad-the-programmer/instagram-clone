@@ -1,5 +1,7 @@
 import logging
 from typing import Dict, Any, Optional, Tuple
+
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Q, QuerySet, Count
 from django.urls import reverse
@@ -14,16 +16,15 @@ from . import mixins
 from .forms import MessageCreateUpdateForm
 from .models import Chat, Message, STATUS
 from .mixins import (GetChatObjectMixin,
-                     ChatAccessPermissionRequiredMixin,
-                     GetMessageObjectMixin,
-                     MessageAccessPermissionRequiredMixin)
-from common.mixins import LoginRequiredMixin as CommonLoginRequiredMixin
+                     ChatAccessPermissionRequiredMixin)
+from common import mixins as common_mixins
+
 
 logger = logging.getLogger(__name__)
 Profile = get_user_model()
 
 
-class ChatListView(CommonLoginRequiredMixin, ListView):
+class ChatListView(LoginRequiredMixin, ListView):
     """
     View for listing all active chats of the current user.
     Orders chats by most recently updated and includes unread message counts.
@@ -59,8 +60,11 @@ class ChatListView(CommonLoginRequiredMixin, ListView):
         return context
     
     
-class ChatDetailView(CommonLoginRequiredMixin, GetChatObjectMixin, 
-                      ChatAccessPermissionRequiredMixin, DetailView):
+class ChatDetailView(LoginRequiredMixin,
+                     GetChatObjectMixin,
+                     common_mixins.HandleNotFoundObjectMixin,
+                     ChatAccessPermissionRequiredMixin,
+                     DetailView):
     """
     View for displaying a chat conversation between two users.
     Handles displaying messages and marking them as read.
@@ -117,7 +121,10 @@ class ChatDetailView(CommonLoginRequiredMixin, GetChatObjectMixin,
         return context
         
 
-class ChatCreateView(CommonLoginRequiredMixin, CreateView):
+class ChatCreateView(LoginRequiredMixin,
+                     common_mixins.HandleNotFoundObjectMixin,
+                     common_mixins.InvalidFormMixin,
+                     CreateView):
     """
     View for creating a new chat or retrieving an existing one between two users.
     Ensures thread safety and prevents duplicate chats.
@@ -200,8 +207,12 @@ class ChatCreateView(CommonLoginRequiredMixin, CreateView):
             return chat.get_absolute_url()
         return reverse_lazy("chats:user-chats")
 
-class ChatDeleteView(CommonLoginRequiredMixin, GetChatObjectMixin,
-                      ChatAccessPermissionRequiredMixin, DeleteView):
+class ChatDeleteView(LoginRequiredMixin,
+                     GetChatObjectMixin,
+                     common_mixins.HandleNotFoundObjectMixin,
+                     common_mixins.InvalidFormMixin,
+                     ChatAccessPermissionRequiredMixin,
+                     DeleteView):
     """
     View for soft-deleting a chat.
     Implements proper permission checks and transaction safety.
@@ -212,34 +223,11 @@ class ChatDeleteView(CommonLoginRequiredMixin, GetChatObjectMixin,
     slug_field = 'chat_slug'
     slug_url_kwarg = 'chat_slug'
 
-    def delete(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        """
-        Handle DELETE request with transaction safety.
-        """
-        try:
-            with transaction.atomic():
-                chat = self.get_object()
-                if not chat:
-                    messages.error(request, "Chat not found.")
-                    return redirect(self.get_success_url())
-                
-                # Soft delete the chat
-                chat.delete()
+    def form_valid(self, form):
+        """Handle form submission."""
+        messages.success(self.request, "Chat has been deleted.")
+        return super().form_valid(form)
 
-                logger.info(
-                    "Chat %s was deleted by %s",
-                    chat.chat_slug,
-                    request.user.username
-                )
-                
-                messages.success(request, "Chat has been deleted.")
-                return redirect(self.get_success_url())
-                
-        except Exception as e:
-            logger.error("Error deleting chat: %s", str(e), exc_info=True)
-            messages.error(request, "An error occurred while deleting the chat.")
-            return redirect(self.get_success_url())
-    
     def get_success_url(self) -> str:
         """Return URL to redirect to after successful deletion."""
         return reverse('chats:user-chats', kwargs={'user_id': self.request.user.id})
@@ -258,83 +246,58 @@ class ChatDeleteView(CommonLoginRequiredMixin, GetChatObjectMixin,
     
 # class MessageCreateView(common_mixins.LoginRequiredMixin,
 
-class MessageUpdateView(CommonLoginRequiredMixin,
-                        mixins.GetMessageObjectMixin,
+class MessageUpdateView(LoginRequiredMixin,
                         mixins.MessageAccessPermissionRequiredMixin,
+                        mixins.GetMessageObjectMixin,
+                        common_mixins.HandleNotFoundObjectMixin,
+                        common_mixins.InvalidFormMixin,
                         edit.UpdateView
                         ):
     template_name = 'chats/chat-detail.html'
     context_object_name = 'message'
     form_class = MessageCreateUpdateForm
     slug_field = 'chat_slug'
+    slug_url_kwarg = 'chat_slug'
 
-    def post(self, request, *args, **kwargs):
-        _chat_slug = self.kwargs.get('chat_slug', '')
-        message = self.get_object()
 
-        if message is None:
-            messages.error(request, 'Message does not exist!')
-            return redirect(reverse('chats:chat-detail', kwargs={'chat_slug': _chat_slug}))
+    def form_valid(self, form):
+        """Handle form submission."""
+        messages.success(self.request, "Message has been updated.")
+        return super().form_valid(form)
 
-        print(request.POST)
-        form = MessageCreateUpdateForm(
-                                        instance=message,
-                                        data=request.POST,
-                                        files=request.FILES
-                                    )
-            
-        if form.is_valid():
-            message = form.save(commit=False)
-            
-            message.author = request.user
-            message.save()
-                
-            messages.success(request, 'Updated!')    
-            return redirect(message.chat.get_absolute_url())
-        
-        messages.error(request, 'Invalid data!')    
-        return redirect(message.chat.get_absolute_url())
+    def get_success_url(self):
+        return self.get_object().chat.get_absolute_url()
 
-    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         message = self.get_object()
         context['form'] = MessageCreateUpdateForm(instance=message)
         context['chat'] = context['message'].chat
         return context
-        
-    
-    def get_success_url(self, *args, **kwargs):
-        print(kwargs)
-        context = self.get_context_data(**kwargs)
-        message = context['message']
-        return message.chat.get_absolute_url()
 
-class MessageDeleteView(CommonLoginRequiredMixin,
-                        mixins.GetMessageObjectMixin,
+
+class MessageDeleteView(LoginRequiredMixin,
                         mixins.MessageAccessPermissionRequiredMixin,
+                        mixins.GetMessageObjectMixin,
+                        common_mixins.HandleNotFoundObjectMixin,
+                        common_mixins.InvalidFormMixin,
                         edit.DeleteView
                         ):
     model = Message
     context_object_name = 'message'
     template_name = 'chats/chat-detail.html'
     slug_field = 'chat_slug'
-    
-    def delete(self, request, *args, **kwargs):
-        self.request = request
-        _chat_slug = self.kwargs.get('chat_slug', '')
-        message = self.get_object()
-        
-        if message is None:
-            messages.error(request, 'Message does not exist!')    
-            return redirect(reverse('chats:chat-detail', kwargs={'chat_slug': _chat_slug}))
-        return super().delete(request, *args, **kwargs)
+    slug_url_kwarg = 'chat_slug'
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['chat'] = context['message'].chat
         return context
-    
+
+    def form_valid(self, form):
+        """Handle form submission."""
+        messages.success(self.request, "Message has been deleted.")
+        return super().form_valid(form)
     
     def get_success_url(self, *args, **kwargs):
         message = self.get_object()

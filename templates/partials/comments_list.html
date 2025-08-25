@@ -7,7 +7,7 @@
       <div class="mt-3 d-flex flex-row align-items-center p-3 form-color">
         <img src="{{user.imageURL}}" width="50" class="rounded-circle mr-2" />
         <form
-  method="POST" {% if update_form %} action="" {% else %} action="{% url 'comments:comment-create' %}" {% endif %} 
+  method="POST" {% if update_form %} action="" {% else %} action="{% url 'comments:comment-create' post_slug=post.slug %}" {% endif %}
           enctype="multipart/form-data"
         >
           {% csrf_token %} 
@@ -42,8 +42,7 @@
                 <div class="d-flex flex-row align-items-center">
                   <span class="mr-2">{{comment.author.username}} ---- </span>
                   <small class="c-badge">
-                    Last logged in at {{post.author.last_login|
-                    timesince}}</small
+                    Last logged in at {{post.author.last_login| timesince}}</small
                   >
                 </div>
                 <small>{{comment.date_created| timesince}}</small>

@@ -9,73 +9,35 @@ from django.views.generic import detail, edit
 # Email verification 
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
-
+# Allauth
+from allauth.account.views import SignupView
 
 from .emails_handler import send_verification_email
-from .forms import UserCreateForm, UserUpdateForm
+from .forms import SignUpForm, UserUpdateForm
 from . import mixins as custom_mixins
 from common import mixins as common_mixins
 
 
 Profile = get_user_model()
 
+class RegisterView(SignupView):
+    # template_name = 'auth/register.html'
+    form_class = SignUpForm
 
-def register(request):
-    if request.method == 'POST':
-        form = UserCreateForm(request.POST, request.FILES)
-        
-        if form.is_valid():
-            user = form.save(commit=False)
-            
-            if Profile.get_user_by_email(user.email):
-                messages.info(request, 'User already exists!')
-                return redirect(reverse_lazy('users:login'))
-            
-            if not user.username:
-                    user.username = user.set_username()
-            
-            user.save()
-            
-            # Sending email activation
-            mail_subject = 'Please activate your account'
-            template_email = 'accounts/account_verification_email.html'
-            send_verification_email(request,
-                                    user,
-                                    template_email,
-                                    mail_subject,
-                                    is_activation_email=True)
-        else:
-            messages.error(request, f'{form.errors}')
-            return redirect(reverse_lazy('users:register'))
-        
-    else:
-        form = UserCreateForm()
-        
-    context = {}
-    context['form'] = form
-    return render(request, 'auth/register.html', context)
- 
- 
-def activate(request, uidb64, token):
-    try:
-        uid = urlsafe_base64_decode(uidb64).decode()
-        user = get_object_or_404(Profile, id=uid)
-    except (TypeError, ValueError, OverflowError, Profile.DoesNotExist):
-        user = None
-        
-    if user is not None and default_token_generator.check_token(user, token):
-            user.is_active = True
-            user.save()
-            
-            messages.success(request, 'Congratulations! Your account is activated.')
-            return redirect(reverse_lazy('users:login'))
-    else:
-        messages.error(request, 'Invalid activation link')
-        return redirect(reverse_lazy('users:register')) 
-
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        # Sending email activation
+        # mail_subject = 'Please activate your account'
+        # template_email = 'accounts/account_verification_email.html'
+        # send_verification_email(self.request,
+        #                         self.request.user,
+        #                         template_email,
+        #                         mail_subject,
+        #                         is_activation_email=True)
+        return response
 
 class ProfileDetailView(custom_mixins.GetProfileObjectMixin,
-                        common_mixins.LoginRequiredMixin,
+                        common_mixins.HandleNotFoundObjectMixin,
                         detail.DetailView
                     ):
     model = Profile
@@ -84,39 +46,34 @@ class ProfileDetailView(custom_mixins.GetProfileObjectMixin,
         
 
 class ProfileDeleteView(LoginRequiredMixin,
-                        custom_mixins.GetProfileObjectMixin, 
-                        common_mixins.LoginRequiredMixin,
+                        custom_mixins.GetProfileObjectMixin,
+                        common_mixins.HandleNotFoundObjectMixin,
+                        common_mixins.InvalidFormMixin,
                         edit.DeleteView
                     ):
     template_name = 'profile/profile_delete.html'
     success_url = reverse_lazy('users:register')
-    
-    
-    def delete(self, request, *args, **kwargs):
-        self.request = request
-        return super().delete(request, *args, **kwargs)
+
         
     def form_valid(self, form):
-        profile = self.get_object()
-        if profile:
-            profile.delete()
             messages.success(self.request, 'Profile deleted!')
             return redirect(self.success_url)
-        else:
-            context={}
-            messages.error(self.request, 'Profile does not exist!')
-            context['profile'] = profile
-            return render(self.request, self.template_name, context)
 
 
 class ProfileUpdateView(LoginRequiredMixin,
-                        custom_mixins.GetProfileObjectMixin, 
-                        common_mixins.LoginRequiredMixin,
+                        custom_mixins.GetProfileObjectMixin,
+                        common_mixins.HandleNotFoundObjectMixin,
+                        common_mixins.InvalidFormMixin,
                         edit.UpdateView
                     ):
     template_name = 'profile/profile-update.html'
     form_class = UserUpdateForm
 
+    def form_valid(self, form):
+        """Handle valid form submission and add success message."""
+        response = super().form_valid(form)
+        messages.success(self.request, 'Your profile has been updated!')
+        return response
 
     def get_success_url(self):
         profile = self.get_object()
@@ -125,35 +82,6 @@ class ProfileUpdateView(LoginRequiredMixin,
                                                         }
                               )
         return success_url
-    
-    
-    def post(self, request, *args, **kwargs):
-        self.request = request
-        profile = self.get_object()
-        if profile is not None:
-            form = UserUpdateForm(instance=profile,
-                                  data=request.POST,
-                                  files=request.FILES,
-                                )
-            if form.is_valid():
-                profile = form.save(commit=False)
-                
-                if not profile.username:
-                    profile.username = profile.set_username()
-                    
-                profile.save()
-                   
-                messages.success(request, 'Updated!')
-                return redirect(self.get_success_url())
-            else:
-                context={}
-                context['form'] = UserUpdateForm()
-                messages.error(request, 'Invalid data!')    
-            return redirect(reverse('profile-update'), kwargs={'pk': profile.id})
-        
-        messages.error(request, 'Profile does not exist!') 
-        return render(request, self.template_name, context)
-    
 
 def forgotPassword(request):
     if request.method == 'POST':
@@ -205,6 +133,53 @@ def resetPassword(request, pk):
             return redirect(reverse('users:resetPassword', kwargs={'pk': pk}))
     else:
         return render(request, 'accounts/resetPassword.html', context={'pk': pk})
-        
-        
-    
+
+
+def activate(request, uidb64, token):
+    try:
+        uid = urlsafe_base64_decode(uidb64).decode()
+        user = get_object_or_404(Profile, id=uid)
+    except (TypeError, ValueError, OverflowError, Profile.DoesNotExist):
+        user = None
+
+    if user is not None and default_token_generator.check_token(user, token):
+        user.is_active = True
+        user.save()
+
+        messages.success(request, 'Congratulations! Your account is activated.')
+        return redirect(reverse_lazy('users:login'))
+    else:
+        messages.error(request, 'Invalid activation link')
+        return redirect(reverse_lazy('users:register'))
+
+# def register(request):
+#     if request.method == 'POST':
+#         form = UserCreateForm(request.POST, request.FILES)
+#
+#         if form.is_valid():
+#             user = form.save(commit=False)
+#
+#             if Profile.get_user_by_email(user.email):
+#                 messages.info(request, 'User already exists!')
+#                 return redirect(reverse_lazy('users:login'))
+#
+#             user.save()
+#
+#             # Sending email activation
+#             mail_subject = 'Please activate your account'
+#             template_email = 'accounts/account_verification_email.html'
+#             send_verification_email(request,
+#                                     user,
+#                                     template_email,
+#                                     mail_subject,
+#                                     is_activation_email=True)
+#         else:
+#             messages.error(request, f'{form.errors}')
+#             return redirect(reverse_lazy('users:register'))
+#
+#     else:
+#         form = UserCreateForm()
+#
+#     context = {}
+#     context['form'] = form
+#     return render(request, 'auth/register.html', context)

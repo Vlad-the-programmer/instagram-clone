@@ -8,6 +8,7 @@ from autoslug import AutoSlugField
 
 from common.models import TimeStampedUUIDModel
 from .managers import PublishedPostsManager
+from common import utils as common_utils
 
 
 class STATUS(models.TextChoices):
@@ -107,7 +108,25 @@ class Post(TimeStampedUUIDModel):
             url = ''
         return url
         
-        
+    def save(
+        self,
+        force_insert = ...,
+        force_update = ...,
+        using = ...,
+        update_fields = ...,
+        **kwargs
+    ):
+        """Save an instance including **kwargs which an author, tags"""
+        self.author = self.kwargs.get("author")
+        common_utils.set_slug(self, self.__class__.published)
+
+        # Add tags in a more efficient way
+        tag_titles = self.kwargs.get("tags", [])
+        tags = Tags.objects.filter(title__in=tag_titles)
+        self.tags.set(tags)
+
+        return super().save(force_insert, force_update, using, update_fields)
+
     def get_absolute_url(self):
         return reverse('posts:post-detail', kwargs={'slug': self.slug})
         

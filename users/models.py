@@ -13,10 +13,11 @@ from .permissions import (PermissionEnum,
                           CustomPermissionEnum)
 
 
-class Gender(models.TextChoices):
-    MALE = "male", _("Male")
-    FEMALE = "female", _("Female")
-    OTHER = "other", _("Other")
+class GenderChoices(models.TextChoices):
+    MALE = "M", _("Male")
+    FEMALE = "F", _("Female")
+    OTHER = "O", _("Other")
+    PREFER_NOT_TO_SAY = "prefer_not_to_say", _("Prefer not to say")
 
 
 class Profile(AbstractUser):
@@ -50,8 +51,8 @@ class Profile(AbstractUser):
                                 )
     gender = models.CharField(
                                 verbose_name=_('Gender'),
-                                max_length=10,
-                                choices=Gender,
+                                max_length=40,
+                                choices=GenderChoices,
                                 default=_('Male'),
                                 null=True)
     country = CountryField(
@@ -193,7 +194,6 @@ class Profile(AbstractUser):
     def count_following(self):
         return self.followers.all().count()
     
-    
     def is_following(self, username):
         return self.following_users_list.filter(
                 following_user__username=username
@@ -203,6 +203,7 @@ class Profile(AbstractUser):
         return self.following_users_list.filter(
                 following_user__username=username
             ).first()
+
 
     class Meta:
        verbose_name = _('User')

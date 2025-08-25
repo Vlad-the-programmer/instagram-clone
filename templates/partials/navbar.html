@@ -38,9 +38,9 @@
   {% if request.user.is_authenticated %}
             {% comment %} <li class="header__menuItem"><a href="{% url 'inbox' %}">Inbox</a></li>
             {% comment %} <li class="header__menuItem"><a href="{% url 'account' %}">Account</a></li> {% endcomment %}
-            <li class="btn btn-danger"><a href="{% url 'users:logout' %}" class="btn btn--sub">Logout</a></li>
+            <li class="btn btn-danger"><a href="{% url 'account_logout' %}" class="btn btn--sub">Logout</a></li>
             {% else %}
-            <li class="btn btn-success"><a href="{% url 'users:login' %}" class="btn btn--sub">Login</a></li> 
+            <li class="btn btn-success"><a href="{% url 'account_login' %}" class="btn btn--sub">Login</a></li>
             {% endif %}
 </nav>
             

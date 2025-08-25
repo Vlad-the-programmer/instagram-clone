@@ -1,7 +1,7 @@
+import logging
 from typing import Dict, Any
 
 from django.db.models import QuerySet
-from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import permission_required
 
@@ -9,14 +9,23 @@ from .models import Post
 from .utils import search_posts, posts_filter, paginate_posts
 
 
-class GetPostObjectMixin():
-    def get_object(self):
-        _slug = self.kwargs.get('slug', '')
+logger = logging.getLogger(__name__)
+
+
+class GetPostObjectMixin:
+    def get_object(self, **kwargs):
+        """Get post object by slug or post_slug if we want to get a post for a comment.
+
+        Args:
+            **kwargs: a post_slug argument with a post slug is expected if we want to get a post for a comment.
+        """
+        _slug = self.kwargs.get(self.slug_url_kwarg
+                                if not kwargs.get('post_slug')
+                                else kwargs.get('post_slug'), '')
         try:
-            post = get_object_or_404(Post, slug=_slug, active=True)
+            post = Post.published.get(slug=_slug)
         except Post.DoesNotExist:
             post = None
-        print(post)
         return post
 
 class PostPermissionMixin:
@@ -26,7 +35,6 @@ class PostPermissionMixin:
     @method_decorator(permission_required(view_permission_required, raise_exception=True))
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
-
 
 class PostPaginationMixin:
     """Mixin to handle post pagination and filtering."""
@@ -56,3 +64,4 @@ class PostPaginationMixin:
             'search_query': search_query or self.request.GET.get('search_query', '')
         })
         return context
+

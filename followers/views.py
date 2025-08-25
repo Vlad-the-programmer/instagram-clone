@@ -1,5 +1,7 @@
 import logging
 from typing import Optional, Dict, Any
+
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.urls import reverse
 from django.shortcuts import redirect, get_object_or_404
@@ -9,12 +11,11 @@ from django.contrib import messages
 from django.views.generic import DetailView
 from django.db.models import QuerySet
 
-from common.mixins import LoginRequiredMixin
 from .models import UserFollowing
 from common.decorators import login_required
-from users.permissions import PermissionEnum
 
 logger = logging.getLogger(__name__)
+
 Profile = get_user_model()
 
 

@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import permission_required
 from .models import Comment
 
 
-class GetCommentObjectMixin():
+class GetCommentObjectMixin:
         
     def get_object(self):
         slug_ = self.kwargs.get('slug', '')
@@ -14,7 +14,6 @@ class GetCommentObjectMixin():
             comment = None
 
         return comment
-
 
 class CommentPermissionMixin:
     """Mixin to handle comment-related permissions."""
@@ -27,3 +26,4 @@ class CommentPermissionMixin:
                 raise_exception=True
             )(super().dispatch)(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
+

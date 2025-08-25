@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Create Your Account</h3>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="signup-form">
+                    {% csrf_token %}
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ form.first_name|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.last_name|as_crispy_field }}
+                        </div>
+                    </div>
+
+                    {{ form.email|as_crispy_field }}
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            {{ form.country|as_crispy_field }}
+                        </div>
+                        <div class="col-md-6">
+                            {{ form.gender|as_crispy_field }}
+                        </div>
+                    </div>
+
+                    {{ form.featured_img|as_crispy_field }}
+
+                    {% if form.password1 %}
+                        {{ form.password1|as_crispy_field }}
+                    {% endif %}
+
+                    {% if form.password2 %}
+                        {{ form.password2|as_crispy_field }}
+                    {% endif %}
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" required id="terms-accept">
+                        <label class="form-check-label" for="terms-accept">
+                            I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-2">Create Account</button>
+                </form>
+                
+                <div class="text-center mt-3">
+                    <p>Already have an account? <a href="{% url 'account_login' %}">Sign in</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Preview image before upload
+    const imageInput = document.querySelector('input[type="file"]');
+    if (imageInput) {
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Create or update preview
+                    let preview = document.querySelector('.image-preview');
+                    if (!preview) {
+                        preview = document.createElement('div');
+                        preview.className = 'image-preview mt-2';
+                        imageInput.parentNode.appendChild(preview);
+                    }
+                    preview.innerHTML = `<img src="${e.target.result}" alt="Preview" class="img-thumbnail" style="max-height: 150px;">`;
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
