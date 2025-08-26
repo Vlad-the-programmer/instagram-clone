@@ -1,20 +1,15 @@
-from django import forms
-from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import ( 
-                                        UserCreationForm, 
-                                        UserChangeForm, 
+from django.contrib.auth.forms import (
+                                        UserChangeForm,
                                         ReadOnlyPasswordHashField
                                     )
-from django_countries.widgets import CountrySelectWidget
 from django.utils.translation import gettext_lazy as _
-from allauth.account import forms as login_form
-# # Signal 
-# from django.db.models.signals import post_save
-# from .signals import update_user_profile
-from chats.models import Message
-from allauth.account.forms import SignupForm
 
-Profile = get_user_model()
+from django import forms
+from django_countries.fields import CountryField
+from django_countries.widgets import CountrySelectWidget
+from allauth.account.forms import SignupForm
+from .models import Profile, GenderChoices
+import re
 
 
 class UserUpdateForm(UserChangeForm):
@@ -43,22 +38,6 @@ class UserUpdateForm(UserChangeForm):
     #     post_save.disconnect(update_user_profile, sender=Profile)
     #     profile.save()
     #     post_save.connect(update_user_profile, sender=Profile)
-
-
-from django import forms
-from django_countries.fields import CountryField
-from django_countries.widgets import CountrySelectWidget
-from allauth.account.forms import SignupForm
-from .models import Profile, GenderChoices
-import re
-
-from django import forms
-from django_countries.fields import CountryField
-from django_countries.widgets import CountrySelectWidget
-from allauth.account.forms import SignupForm
-from .models import Profile, GenderChoices
-import re
-
 
 class SignUpForm(SignupForm):
     first_name = forms.CharField(
@@ -216,20 +195,4 @@ class SignUpForm(SignupForm):
             'featured_img',
             'gender',
         )
-        
-        
-class UserLoginForm(login_form.LoginForm):
-    class Meta:
-        def __init__(self):
-            super(login_form.LoginForm, self).__init__()
-            for field in self.fields:
-                field.update({'class': 'form-control'})
-        
 
-class UserPasswordResetForm(forms.ModelForm):
-    confirm_password = forms.PasswordInput(attrs={'placeholder': 'Confirm password'})
-    class Meta:
-        model = Profile
-        fields = ('password',)
-        widgets = {'password': forms.PasswordInput(attrs={'placeholder': 'New password'})}
-        

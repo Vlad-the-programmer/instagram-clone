@@ -2,6 +2,7 @@ media
 docker
 db_data.json
 commands.txt
+users/tests
 
 # Created by https://gitignore.org
 # Python.gitignore

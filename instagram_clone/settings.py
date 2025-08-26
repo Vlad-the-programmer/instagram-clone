@@ -197,6 +197,11 @@ ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_CONFIRM_EMAIL_ON_GET = True
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
+ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = None
+ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+ACCOUNT_EMAIL_NOTIFICATIONS = True
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "[Your Site] "
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = "http" if DEBUG else "https"
 
 # Authentication method
 ACCOUNT_AUTHENTICATION_METHOD = "email"
@@ -215,7 +220,66 @@ ACCOUNT_LOGOUT_ON_PASSWORD_CHANGE = True
 
 ACCOUNT_FORMS = {
     'signup': 'users.forms.SignUpForm',
+    'add_email': 'allauth.account.forms.AddEmailForm',
+    'change_password': 'allauth.account.forms.ChangePasswordForm',
+    'reset_password': 'allauth.account.forms.ResetPasswordForm',
+    'reset_password_from_key': 'allauth.account.forms.ResetPasswordKeyForm',
+    'set_password': 'allauth.account.forms.SetPasswordForm',
 }
+
+# Email backend for development
+if DEBUG:
+    print("\n=== DEBUG: Using console email backend ===")
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    
+    # Configure logging
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'verbose': {
+                'format': '{levelname} {asctime} {module} {message}',
+                'style': '{',
+            },
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose',
+                'level': 'DEBUG',
+            },
+            'file': {
+                'level': 'DEBUG',
+                'class': 'logging.FileHandler',
+                'filename': 'debug.log',
+            },
+        },
+        'loggers': {
+            'django': {
+                'handlers': ['console', 'file'],
+                'level': 'INFO',
+                'propagate': True,
+            },
+            'django.core.mail': {
+                'handlers': ['console', 'file'],
+                'level': 'DEBUG',
+                'propagate': True,
+            },
+            'allauth': {
+                'handlers': ['console', 'file'],
+                'level': 'DEBUG',
+            },
+        },
+    }
+else:
+    # Production email settings (configure these in your environment variables)
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.com')
 
 # SocialAccount Auth
 SOCIALACCOUNT_PROVIDERS = {
@@ -270,51 +334,15 @@ SOCIALACCOUNT_QUERY_EMAIL = ACCOUNT_EMAIL_REQUIRED
 ACCOUNT_ALLOW_SIGNUPS = True
 
 # Adapters
-SOCIALACCOUNT_ADAPTER = 'socialaccountAuth.adapters.CustomSocialAccountAdapter' 
-ACCOUNT_ADAPTER = "socialaccountAuth.adapters.MyLoginAccountAdapter"
+# SOCIALACCOUNT_ADAPTER = 'socialaccountAuth.adapters.CustomSocialAccountAdapter'
+# ACCOUNT_ADAPTER = "socialaccountAuth.adapters.MyLoginAccountAdapter"
+
+ACCOUNT_ADAPTER = "allauth.account.adapter.DefaultAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "allauth.socialaccount.adapter.DefaultSocialAccountAdapter"
 
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 
-# Email Configuration
-# In development, print emails to console
-if DEBUG:
-    import logging
-
-    logger = logging.getLogger('django.core.mail')
-    logger.setLevel(logging.DEBUG)
-    # For development - use console backend
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
-    ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
-    ACCOUNT_EMAIL_CONFIRMATION_COOLDOWN = 60
-
-    # Set a proper domain for email links
-    SITE_DOMAIN = '127.0.0.1:8000'
-    DEFAULT_FROM_EMAIL = 'noreply@example.com'  # Using example.com for development
-
-    try:
-        from django.contrib.sites.models import Site
-
-        site = Site.objects.get(id=1)
-        site.domain = '127.0.0.1:8000'
-        site.name = 'Local Development'
-        site.save()
-    except:
-        pass
-
-    # Print emails to console in development
-    EMAIL_FILE_PATH = None  # Don't save emails as files
-else:
-    # For production - SMTP configuration
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-    EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 2525))
-    EMAIL_USE_TLS = True
-    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.com')
 
 # Email subject prefix
 EMAIL_SUBJECT_PREFIX = 'Instgram Clone -'
