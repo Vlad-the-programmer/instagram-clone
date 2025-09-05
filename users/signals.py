@@ -1,13 +1,15 @@
 import logging
-from django.dispatch import receiver
+
+from allauth.core.internal.httpkit import redirect
 from django.contrib import messages
+from django.dispatch import receiver
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save
 
 # AllAuth
-from allauth.account.signals import user_signed_up, email_confirmed
+from allauth.account.signals import user_signed_up, email_confirmation_sent, email_confirmed
 from allauth.account.models import EmailAddress, EmailConfirmation
 
 from users.permissions import PermissionEnum
@@ -17,24 +19,34 @@ logger = logging.getLogger(__name__)
 Profile = get_user_model()
 
 
-# @receiver(user_signed_up)
-# def user_signed_up_(request, user, **kwargs):
-#
-#     user.is_active = False
-#     user.save()
-#
-#     email_address = EmailAddress.objects.get_for_user(user, user.email)
-#     # Sending confirmation
-#     confirmation = EmailConfirmation.create(email_address)
-#     confirmation.send(request, signup=True)
-#
-#     messages.add_message(
-#         request,
-#         messages.INFO,
-#         message=f"Confirmation email has been sent to {user.email}",
-#     )
-#     logger.info(f"{user}'s profile created and confirm. email sent")
+@receiver(user_signed_up)
+def user_signed_up_(request, user, **kwargs):
+    user.is_active = False
+    user.save()
 
+    email_address = EmailAddress.objects.get_for_user(user, user.email)
+
+    # Use EmailConfirmationHMAC for proper key generation
+    from allauth.account.models import EmailConfirmationHMAC
+    confirmation = EmailConfirmationHMAC(email_address)
+    confirmation.send(request, signup=True)
+
+    messages.add_message(
+        request,
+        messages.INFO,
+        message=f"Confirmation email has been sent to {user.email}",
+    )
+    logger.info(f"{user}'s profile created and confirm. email sent")
+
+@receiver(email_confirmed)
+def email_confirmed_(request, email_address, **kwargs):
+    """
+    Activate the user when their email is confirmed
+    """
+    user = email_address.user
+    user.is_active = True
+    user.save()
+    logger.info(f"{user}'s email confirmed and account activated")
 
 @receiver(post_save, sender=Profile)
 def add_default_permissions(sender, instance, created, **kwargs):

@@ -1,14 +1,12 @@
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect
 from django.urls import reverse, reverse_lazy
 # Auth
 from django.contrib.auth import get_user_model
 from django.contrib import messages
 # Generic class-based views
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import detail, edit
-# Email verification 
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_decode
+from django.views.generic import detail, edit, TemplateView
+
 # Allauth
 from allauth.account.views import SignupView
 
@@ -22,7 +20,7 @@ Profile = get_user_model()
 
 class RegisterView(SignupView):
     form_class = SignUpForm
-
+    success_url = reverse_lazy('users:email-confirmation-sent')
     def form_valid(self, form):
         response = super().form_valid(form)
         # Sending email activation
@@ -33,24 +31,33 @@ class RegisterView(SignupView):
         #                         template_email,
         #                         mail_subject,
         #                         is_activation_email=True)
+        print(f"User created: {self.user}")
+        print(f"User email: {self.user.email}")
+        print(f"User active status: {self.user.is_active}")
+
         return response
 
+class EmailConfirmationSentView(TemplateView):
+    template_name = 'account/email/email_confirmation_info.html'
 
-class ProfileDetailView(custom_mixins.GetProfileObjectMixin,
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['email_sent'] = self.request.GET.get('email_sent', False)
+        return context
+
+class ProfileDetailView(LoginRequiredMixin,
+                        custom_mixins.GetProfileObjectMixin,
                         common_mixins.HandleNotFoundObjectMixin,
-                        detail.DetailView
-                        ):
+                        detail.DetailView):
     model = Profile
     template_name = 'profile/profile_detail.html'
     context_object_name = 'profile'
-
 
 class ProfileDeleteView(LoginRequiredMixin,
                         custom_mixins.GetProfileObjectMixin,
                         common_mixins.HandleNotFoundObjectMixin,
                         common_mixins.InvalidFormMixin,
-                        edit.DeleteView
-                        ):
+                        edit.DeleteView):
     template_name = 'profile/profile_delete.html'
     success_url = reverse_lazy('users:register')
 
@@ -58,13 +65,11 @@ class ProfileDeleteView(LoginRequiredMixin,
         messages.success(self.request, 'Profile deleted!')
         return redirect(self.success_url)
 
-
 class ProfileUpdateView(LoginRequiredMixin,
                         custom_mixins.GetProfileObjectMixin,
                         common_mixins.HandleNotFoundObjectMixin,
                         common_mixins.InvalidFormMixin,
-                        edit.UpdateView
-                        ):
+                        edit.UpdateView):
     template_name = 'profile/profile-update.html'
     form_class = UserUpdateForm
 

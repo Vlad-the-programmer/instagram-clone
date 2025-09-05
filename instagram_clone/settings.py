@@ -1,4 +1,3 @@
-
 from pathlib import Path
 from dotenv import load_dotenv
 import os
@@ -7,7 +6,6 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(os.path.join(BASE_DIR / '.env'))
-
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
@@ -200,7 +198,7 @@ ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 1
 ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = None
 ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
 ACCOUNT_EMAIL_NOTIFICATIONS = True
-ACCOUNT_EMAIL_SUBJECT_PREFIX = "[Your Site] "
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "Instgram Clone - "
 ACCOUNT_DEFAULT_HTTP_PROTOCOL = "http" if DEBUG else "https"
 
 # Authentication method
@@ -231,48 +229,106 @@ ACCOUNT_FORMS = {
 if DEBUG:
     print("\n=== DEBUG: Using console email backend ===")
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    
-    # Configure logging
+
+    SITE_DOMAIN = 'localhost:8000'
+    SITE_NAME = 'Localhost'
+
+    # Ensure the logs directory exists
+    log_dir = BASE_DIR / "logs"
+    log_dir.mkdir(exist_ok=True)
+
     LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'verbose': {
-                'format': '{levelname} {asctime} {module} {message}',
-                'style': '{',
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "verbose": {
+                "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+                "style": "{",
+            },
+            "simple": {
+                "format": "{levelname} {message}",
+                "style": "{",
+            },
+            "console": {
+                "format": "%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
+            },
+            "file": {
+                "format": "%(asctime)s %(name)-15s %(levelname)-8s %(message)s",
             },
         },
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-                'formatter': 'verbose',
-                'level': 'DEBUG',
-            },
-            'file': {
-                'level': 'DEBUG',
-                'class': 'logging.FileHandler',
-                'filename': 'debug.log',
+        "filters": {
+            "require_debug_true": {
+                "()": "django.utils.log.RequireDebugTrue",
             },
         },
-        'loggers': {
-            'django': {
-                'handlers': ['console', 'file'],
-                'level': 'INFO',
-                'propagate': True,
+        "handlers": {
+            "console": {
+                "level": "DEBUG",
+                "class": "logging.StreamHandler",
+                "formatter": "console",
             },
-            'django.core.mail': {
-                'handlers': ['console', 'file'],
-                'level': 'DEBUG',
-                'propagate': True,
+            "file": {
+                "level": "INFO",
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": "file",
+                "filename": BASE_DIR / "logs/django.log",
+                "maxBytes": 1024 * 1024 * 5,  # 5 MB
+                "backupCount": 5,
             },
-            'allauth': {
-                'handlers': ['console', 'file'],
-                'level': 'DEBUG',
+            "mail_admins": {
+                "level": "ERROR",
+                "class": "django.utils.log.AdminEmailHandler",
             },
+        },
+        "loggers": {
+            # Root logger - captures everything
+            "": {
+                "handlers": ["console", "file"],
+                "level": "INFO",
+                "propagate": True,
+            },
+            # Django framework loggers
+            "django": {
+                "handlers": ["console", "file"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            # Database queries (set to DEBUG to see SQL queries)
+            "django.db.backends": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            # Allauth logging
+            "allauth": {
+                "handlers": ["console", "file"],
+                "level": "DEBUG",
+                "propagate": False,
+            },
+            # Email logging
+            "django.core.mail": {
+                "handlers": ["console", "file"],
+                "level": "DEBUG",
+                "propagate": False,
+            },
+            # Your apps logging
+            "users": {
+                "handlers": ["console", "file"],
+                "level": "DEBUG",
+                "propagate": False,
+            },
+            "posts": {
+                "handlers": ["console", "file"],
+                "level": "DEBUG",
+                "propagate": False,
+            },
+            # Add other apps as needed
         },
     }
 else:
-    # Production email settings (configure these in your environment variables)
+    SITE_DOMAIN = os.getenv('SITE_DOMAIN', 'localhost:8000')
+    SITE_NAME = os.getenv('SITE_NAME', 'Localhost')
+
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
@@ -333,16 +389,11 @@ SOCIALACCOUNT_QUERY_EMAIL = ACCOUNT_EMAIL_REQUIRED
 # Allow user to sign up with a social account in SOCIALACCOUNT_ADAPTER
 ACCOUNT_ALLOW_SIGNUPS = True
 
-# Adapters
-# SOCIALACCOUNT_ADAPTER = 'socialaccountAuth.adapters.CustomSocialAccountAdapter'
-# ACCOUNT_ADAPTER = "socialaccountAuth.adapters.MyLoginAccountAdapter"
-
 ACCOUNT_ADAPTER = "allauth.account.adapter.DefaultAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "allauth.socialaccount.adapter.DefaultSocialAccountAdapter"
 
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_EMAIL_REQUIRED = False
-
 
 # Email subject prefix
 EMAIL_SUBJECT_PREFIX = 'Instgram Clone -'
@@ -445,7 +496,6 @@ JAZZMIN_UI_TWEAKS = {
     },
 }
 
-
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -454,45 +504,3 @@ CHANNEL_LAYERS = {
         },
     },
 }
-
-import logging
-import logging.config
-
-from django.utils.log import DEFAULT_LOGGING
-
-logger = logging.getLogger(__name__)
-
-LOG_LEVEL = "INFO"
-    
-    
-logging.config.dictConfig(
-    {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "console": {
-                "format": "%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
-            },
-            "file": {"format": "%(asctime)s %(name)-12s %(levelname)-8s %(message)s"},
-            "django.server": DEFAULT_LOGGING["formatters"]["django.server"],
-        },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "formatter": "console",
-            },
-            "file": {
-                "level": "INFO",
-                "class": "logging.FileHandler",
-                "formatter": "file",
-                "filename": BASE_DIR / "logs/instagram.log",
-            },
-            "django.server": DEFAULT_LOGGING["handlers"]["django.server"],
-        },
-        "loggers": {
-            "": {"level": "INFO", "handlers": ["console", "file"], "propagate": False},
-            "apps": {"level": "INFO", "handlers": ["console"], "propagate": False},
-            "django.server": DEFAULT_LOGGING["loggers"]["django.server"],
-        },
-    }
-)

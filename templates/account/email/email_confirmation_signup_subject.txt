@@ -1,3 +1,0 @@
-{% load account %}
-{% load i18n %}
-{% trans "Please Confirm Your E-mail Address" %}
